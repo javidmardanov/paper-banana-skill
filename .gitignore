@@ -1,0 +1,46 @@
+# Output files from testing
+output/
+test_output/
+*.png
+*.pdf
+*.jpg
+*.jpeg
+!README.md
+!skills/paper-banana/assets/references/*.png
+!skills/paper-banana/assets/references/*.jpg
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Skill packaging
+*.skill
+
+# Test artifacts
+test_*/
+
+# Claude Code internal files
+CLAUDE.md
+.claude/

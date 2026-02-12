@@ -1,0 +1,54 @@
+{
+  "name": "NeurIPS 2025 Plot Palette",
+  "description": "Statistical plot colors for NeurIPS 2025 style. Soft pastels for categorical, earth tones for secondary, perceptual colormaps for sequential.",
+  "categorical": [
+    "#5B9BD5",
+    "#ED7D31",
+    "#70AD47",
+    "#FFC000",
+    "#9B59B6",
+    "#1ABC9C",
+    "#E74C3C"
+  ],
+  "categorical_names": [
+    "soft blue",
+    "soft orange",
+    "sage green",
+    "golden yellow",
+    "medium purple",
+    "teal",
+    "soft red"
+  ],
+  "soft_pastels": [
+    "#F4A7A0",
+    "#87CEEB",
+    "#98D8C8",
+    "#C5B3E6",
+    "#F7DC6F",
+    "#F0B27A"
+  ],
+  "soft_pastel_names": [
+    "salmon",
+    "sky blue",
+    "mint",
+    "lavender",
+    "pale gold",
+    "peach"
+  ],
+  "earth_tones": [
+    "#8B9A46",
+    "#D4C5A0",
+    "#6E8B99",
+    "#B8860B",
+    "#8B6F47"
+  ],
+  "earth_tone_names": [
+    "olive",
+    "beige",
+    "slate",
+    "dark goldenrod",
+    "warm brown"
+  ],
+  "sequential_colormaps": ["viridis", "magma", "cividis", "inferno"],
+  "diverging_colormaps": ["RdBu_r", "coolwarm", "BrBG"]
+}

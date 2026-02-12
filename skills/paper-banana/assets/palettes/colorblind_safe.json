@@ -1,0 +1,41 @@
+{
+  "name": "Colorblind-Safe Palette",
+  "description": "Okabe-Ito derived palette optimized for all forms of color vision deficiency. Use as default for all statistical plots.",
+  "colors": [
+    "#4477AA",
+    "#EE6677",
+    "#228833",
+    "#CCBB44",
+    "#AA3377",
+    "#66CCEE",
+    "#BBBBBB"
+  ],
+  "color_names": [
+    "steel blue",
+    "salmon pink",
+    "forest green",
+    "golden yellow",
+    "plum",
+    "sky blue",
+    "medium gray"
+  ],
+  "usage_notes": {
+    "max_categories": 7,
+    "grayscale_distinguishable": true,
+    "deuteranopia_safe": true,
+    "protanopia_safe": true,
+    "tritanopia_safe": true
+  },
+  "pattern_guidance": {
+    "note": "For grayscale printing, pair colors with distinct patterns",
+    "patterns": [
+      {"color_index": 0, "hatch": ""},
+      {"color_index": 1, "hatch": "//"},
+      {"color_index": 2, "hatch": "\\\\"},
+      {"color_index": 3, "hatch": "xx"},
+      {"color_index": 4, "hatch": ".."},
+      {"color_index": 5, "hatch": "++"},
+      {"color_index": 6, "hatch": "oo"}
+    ]
+  }
+}

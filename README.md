@@ -1,0 +1,138 @@
+# Paper Banana Skill
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-green.svg)](https://agentskills.io)
+
+Generate publication-ready academic diagrams from methodology text using a five-agent pipeline powered by Gemini. Based on [PaperBanana](https://arxiv.org/abs/2601.23265) (Zhu et al., 2026).
+
+```
+Methodology Text  -->  Retriever  -->  Planner  -->  Stylist  -->  Visualizer  -->  Critic  -->  Output
+                       (classify)     (describe)    (polish)      (render)        (evaluate)
+```
+
+## Install
+
+```bash
+npx skills add javidmardanov/paper-banana-skill
+```
+
+Or clone directly:
+
+```bash
+git clone https://github.com/javidmardanov/paper-banana-skill.git
+pip install -r requirements.txt
+export GOOGLE_API_KEY="your-key"
+```
+
+## Quick Start
+
+**Generate a diagram:**
+
+```bash
+cd skills/paper-banana/scripts
+
+python orchestrate.py \
+  --methodology-file methodology.txt \
+  --caption "Figure 1: Overview of proposed framework" \
+  --mode diagram \
+  --output output/diagram.png
+```
+
+**Or ask your AI agent:**
+
+> "Generate a methodology diagram for my transformer architecture. Here is the methodology section: [paste text]."
+
+**Statistical plots:**
+
+> "Create a bar chart comparing model accuracy. Data: {BERT: 92.3, GPT-4: 88.1, Claude: 95.7}."
+
+## How It Works
+
+```mermaid
+graph LR
+    A[Methodology Text] --> B[Retriever]
+    B -->|Select 2 references| C[Planner]
+    C -->|Multimodal description| D[Stylist]
+    D -->|Styled description| E[Visualizer]
+    E -->|Generated image| F[Critic]
+    F -->|Accept| G[Output]
+    F -->|Revise| E
+```
+
+| Agent | What it does | Model |
+|-------|-------------|-------|
+| **Retriever** | Classifies methodology into 4 categories, picks 2 reference diagrams | gemini-2.0-flash |
+| **Planner** | Sends reference images + text to VLM, generates detailed description | gemini-2.0-flash |
+| **Stylist** | Applies NeurIPS 2025 aesthetic conventions | gemini-2.0-flash |
+| **Visualizer** | Generates the diagram image | gemini-2.0-flash (image gen) |
+| **Critic** | Scores on faithfulness, readability, conciseness, aesthetics (1-10) | gemini-2.0-flash |
+
+The Critic loops back to the Visualizer up to 3 times if faithfulness or readability score below 7.
+
+**Two modes:**
+- **Diagram mode** — full pipeline, generates images via Gemini
+- **Plot mode** — generates Python matplotlib/seaborn code (code-based = no data hallucination)
+
+## What's Included
+
+```
+skills/paper-banana/
+├── SKILL.md                        # Agent instructions (the skill itself)
+├── scripts/
+│   ├── orchestrate.py              # End-to-end pipeline
+│   ├── retriever.py                # Reference selection
+│   ├── planner.py                  # Multimodal description generation
+│   ├── stylist.py                  # Style application
+│   ├── critic.py                   # Image evaluation
+│   ├── generate_image.py           # Gemini image generation
+│   ├── plot_generator.py           # Matplotlib plot generator
+│   └── validate_output.py          # Dependency checker
+├── references/                     # Style guides, prompts, rubrics
+├── assets/
+│   ├── references/                 # 13 curated NeurIPS 2025 diagrams
+│   ├── palettes/                   # Color palettes (colorblind-safe)
+│   └── matplotlib_styles/          # Academic .mplstyle files
+└── requirements.txt
+```
+
+## Requirements
+
+- Python 3.10+
+- `GOOGLE_API_KEY` environment variable ([get one free](https://aistudio.google.com/apikey))
+
+```bash
+pip install -r requirements.txt
+```
+
+## Contributing
+
+Contributions are welcome! Some areas where help is needed:
+
+- **More reference diagrams** — the paper uses 292, we have 13. More examples improve the Planner's multimodal learning.
+- **Stricter Critic** — the evaluation agent could be more discerning to better leverage the refinement loop.
+- **SVG/vector output** — currently raster only.
+- **Additional style guides** — ICML, CVPR, ICLR formatting conventions.
+
+Please open an issue first to discuss what you'd like to change.
+
+## Disclaimer
+
+This is an **unofficial** community implementation inspired by the PaperBanana paper. It is not affiliated with, endorsed by, or connected to the original authors, Google Research, or Peking University.
+
+## Citation
+
+This skill implements concepts from:
+
+> Dawei Zhu, Rui Meng, Yale Song, Xiyu Wei, Sujian Li, Tomas Pfister, Jinsung Yoon.
+> *PaperBanana: Automating Academic Illustration for AI Scientists.*
+> [arXiv:2601.23265](https://arxiv.org/abs/2601.23265), 2026.
+
+- [Official project page](https://dwzhu-pku.github.io/PaperBanana/)
+- [Reference implementation](https://github.com/llmsresearch/paperbanana) (unofficial, MIT)
+
+Bundled reference diagrams are from open-access arXiv papers, sourced via the [llmsresearch/paperbanana](https://github.com/llmsresearch/paperbanana) dataset (MIT). Each image is attributed by arXiv ID.
+
+## License
+
+[MIT](LICENSE)

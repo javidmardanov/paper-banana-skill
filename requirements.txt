@@ -1,0 +1,5 @@
+google-genai>=1.0.0
+matplotlib>=3.8.0
+seaborn>=0.12.0
+numpy>=1.24.0
+pillow>=10.0.0

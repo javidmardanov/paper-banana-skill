@@ -1,0 +1,65 @@
+# PaperBanana Academic Minimal Style
+# No grid, open spines, maximum data-ink ratio
+# Inspired by Edward Tufte's principles
+
+# Figure
+figure.figsize:     6.875, 4.5
+figure.dpi:         150
+figure.facecolor:   white
+figure.edgecolor:   white
+
+# Saving
+savefig.dpi:        300
+savefig.facecolor:  white
+savefig.edgecolor:  white
+savefig.bbox:       tight
+savefig.pad_inches: 0.05
+
+# Font
+font.family:        sans-serif
+font.sans-serif:    Helvetica, Arial, DejaVu Sans, Liberation Sans, sans-serif
+font.size:          10
+
+# Axes — minimal spines
+axes.facecolor:     white
+axes.edgecolor:     333333
+axes.linewidth:     0.6
+axes.grid:          False
+axes.titlesize:     12
+axes.titleweight:   bold
+axes.labelsize:     10
+axes.labelcolor:    333333
+axes.spines.top:    False
+axes.spines.right:  False
+axes.prop_cycle:    cycler('color', ['4477AA', 'EE6677', '228833', 'CCBB44', 'AA3377', '66CCEE', 'BBBBBB'])
+
+# Grid — disabled
+grid.color:         E0E0E0
+grid.linestyle:     --
+grid.linewidth:     0.5
+grid.alpha:         0.0
+
+# Ticks
+xtick.direction:    in
+ytick.direction:    in
+xtick.major.size:   3
+ytick.major.size:   3
+xtick.minor.size:   0
+ytick.minor.size:   0
+xtick.labelsize:    8
+ytick.labelsize:    8
+xtick.color:        333333
+ytick.color:        333333
+
+# Lines
+lines.linewidth:    1.8
+lines.markersize:   6
+
+# Legend
+legend.fontsize:    9
+legend.frameon:     False
+legend.loc:         best
+
+# Patches
+patch.edgecolor:    666666
+patch.linewidth:    0.5

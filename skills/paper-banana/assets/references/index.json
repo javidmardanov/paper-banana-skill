@@ -1,0 +1,106 @@
+[
+  {
+    "id": "2404.15806v1",
+    "file": "2404.15806v1.jpg",
+    "category": "Science & Applications",
+    "caption": "Overview of StructMAE. (a) The overall pipeline: Input Graph -> SBS (Structure-based Scoring) -> SGM (Structure-guided Masking) -> Enc -> Dec -> Reconstructed Nodes. (b) SBS module with pre-defined/learnable scoring and TopK selection. (c) SGM module showing progressive masking across training epochs.",
+    "aspect_ratio": 3.24,
+    "source_paper": "2404.15806v1"
+  },
+  {
+    "id": "2601.03570v1",
+    "file": "2601.03570v1.jpg",
+    "category": "Agent & Reasoning",
+    "caption": "Concept Circuits: A transformer block (Attention, FFN, Add&Norm layers) maps to a concept circuit graph. Graph metrics (Node Importance, Info Flow Efficiency, Redundancy, Robustness) characterize internal concept representations.",
+    "aspect_ratio": 0.61,
+    "source_paper": "2601.03570v1"
+  },
+  {
+    "id": "2601.05110v1",
+    "file": "2601.05110v1.jpg",
+    "category": "Agent & Reasoning",
+    "caption": "Overview of GlimpRouter. The framework coordinates three layers: LLM (generates full steps and final answers), GlimpRouter (entropy-based routing checking initial token entropy H_init), and SLM (generates first tokens and complete steps). High H_init routes to LLM; low H_init stays with SLM.",
+    "aspect_ratio": 2.95,
+    "source_paper": "2601.05110v1"
+  },
+  {
+    "id": "2601.05144v1",
+    "file": "2601.05144v1.jpg",
+    "category": "Generative & Learning",
+    "caption": "ReasonMark pipeline: A prompt is processed by RLLM with <think> reasoning. Criticality Score CS(w) = GCC(w) + log(1 + CPS(w)) identifies Top-K Critical Tokens. The PSV R_i is initialized with PCA and guides semantically-aligned watermark embedding.",
+    "aspect_ratio": 0.91,
+    "source_paper": "2601.05144v1"
+  },
+  {
+    "id": "2601.06411v1",
+    "file": "2601.06411v1.jpg",
+    "category": "Agent & Reasoning",
+    "caption": "SEEM architecture overview. Sequential passages are processed by Memory Generation Agents into two layers: (1) Graph Memory with timestamped facts, fine-grained semantic edges, and schema-agnostic knowledge; (2) Episodic Memory with structured narrative synthesis, cognitive frame instantiation, and granular semantic decomposition of events.",
+    "aspect_ratio": 2.84,
+    "source_paper": "2601.06411v1"
+  },
+  {
+    "id": "2601.06953v2",
+    "file": "2601.06953v2.jpg",
+    "category": "Generative & Learning",
+    "caption": "Task Generation pipeline for X-Coder. Code Snippets undergo Feature Extraction (Sorting, Math, Traversal), Evolve and Merge, Select and Thinking (selected subtree + scenario generation), producing competition-level programming Tasks.",
+    "aspect_ratio": 3.49,
+    "source_paper": "2601.06953v2"
+  },
+  {
+    "id": "2601.07033v1",
+    "file": "2601.07033v1.jpg",
+    "category": "Generative & Learning",
+    "caption": "The Codified Foreshadow-Payoff Generation loop. Story Prefix X_t feeds into Codified Casual State (Foreshadow Pool C_t), Eligibility Selection checks triggers, Conditional Generation (LM) produces continuation y, and State Update codifies new foreshadows and resolves commitments.",
+    "aspect_ratio": 1.72,
+    "source_paper": "2601.07033v1"
+  },
+  {
+    "id": "2601.07055v1",
+    "file": "2601.07055v1.jpg",
+    "category": "Agent & Reasoning",
+    "caption": "Self-Evolution Feedback Loop in Dr. Zero. The Proposer generates QA Pairs via Reason & Search, which the Solver attempts to solve. Predictions yield Difficulty Rewards and Outcome Rewards. Step 1 updates the Proposer via HRPO; Step 2 updates the Solver via GRPO.",
+    "aspect_ratio": 2.7,
+    "source_paper": "2601.07055v1"
+  },
+  {
+    "id": "2601.09259v1",
+    "file": "2601.09259v1.jpg",
+    "category": "Agent & Reasoning",
+    "caption": "MAXS architecture. An LLM Agent with Code and Search tools processes inputs through (a) Rollout & Lookahead, (b) Value Estimation combining Advantage, Step-level Variance, and Trend Slope, and (c) Integration weighting to select the best expansion.",
+    "aspect_ratio": 2.18,
+    "source_paper": "2601.09259v1"
+  },
+  {
+    "id": "2601.09708v1",
+    "file": "2601.09708v1.jpg",
+    "category": "Vision & Perception",
+    "caption": "Fast-ThinkAct training framework. (a) A Textual Teacher generates verbose reasoning, distilled into a Latent Student producing compact latent tokens z. GRPO Rollouts with reward provide the Verbalizer LLM loss. (b) The Latent Student Spatial KV feeds into an Action Model for robotic manipulation.",
+    "aspect_ratio": 2.75,
+    "source_paper": "2601.09708v1"
+  },
+  {
+    "id": "2601.14724v2",
+    "file": "2601.14724v2.jpg",
+    "category": "Vision & Perception",
+    "caption": "HERMES architecture for streaming video understanding. Video chunks processed by Vision Encoder into hierarchical KV Cache: Shallow (Sensory Memory), Middle (Working Memory), Deep (Long-term Memory). Cross-Layer Smoothing and Position Re-Indexing enable real-time Streaming QA.",
+    "aspect_ratio": 2.68,
+    "source_paper": "2601.14724v2"
+  },
+  {
+    "id": "2601.15165v2",
+    "file": "2601.15165v2.jpg",
+    "category": "Generative & Learning",
+    "caption": "Confronting vs. bypassing uncertainty in token generation. (a) AR Order confronts uncertain (forking) tokens sequentially. (b) Arbitrary Order bypasses uncertain tokens, skipping hard decisions, which limits reasoning potential.",
+    "aspect_ratio": 2.04,
+    "source_paper": "2601.15165v2"
+  },
+  {
+    "id": "2601.15892v2",
+    "file": "2601.15892v2.jpg",
+    "category": "Generative & Learning",
+    "caption": "Stable-DiffCoder training pipeline. AR Mode Pretraining -> Code Continuous Pretraining -> Small Block Diffusion (DLLM Mode) -> Big Block or Bidirectional Diffusion, producing AR and DLLM Base Models with four key training features.",
+    "aspect_ratio": 0.92,
+    "source_paper": "2601.15892v2"
+  }
+]

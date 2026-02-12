@@ -1,0 +1,65 @@
+# PaperBanana Academic Default Style
+# NeurIPS 2025 publication-ready matplotlib style
+# White background, sans-serif, 300 DPI, publication sizing
+
+# Figure
+figure.figsize:     6.875, 4.5
+figure.dpi:         150
+figure.facecolor:   white
+figure.edgecolor:   white
+
+# Saving
+savefig.dpi:        300
+savefig.facecolor:  white
+savefig.edgecolor:  white
+savefig.bbox:       tight
+savefig.pad_inches: 0.05
+
+# Font
+font.family:        sans-serif
+font.sans-serif:    Helvetica, Arial, DejaVu Sans, Liberation Sans, sans-serif
+font.size:          10
+
+# Axes
+axes.facecolor:     white
+axes.edgecolor:     333333
+axes.linewidth:     0.8
+axes.grid:          True
+axes.titlesize:     12
+axes.titleweight:   bold
+axes.labelsize:     10
+axes.labelcolor:    333333
+axes.spines.top:    False
+axes.spines.right:  False
+axes.prop_cycle:    cycler('color', ['4477AA', 'EE6677', '228833', 'CCBB44', 'AA3377', '66CCEE', 'BBBBBB'])
+
+# Grid
+grid.color:         E0E0E0
+grid.linestyle:     --
+grid.linewidth:     0.5
+grid.alpha:         0.7
+
+# Ticks
+xtick.direction:    in
+ytick.direction:    in
+xtick.major.size:   4
+ytick.major.size:   4
+xtick.minor.size:   2
+ytick.minor.size:   2
+xtick.labelsize:    8
+ytick.labelsize:    8
+xtick.color:        333333
+ytick.color:        333333
+
+# Lines
+lines.linewidth:    1.8
+lines.markersize:   6
+
+# Legend
+legend.fontsize:    9
+legend.frameon:     False
+legend.loc:         best
+
+# Patches (bars, etc.)
+patch.edgecolor:    666666
+patch.linewidth:    0.5
