@@ -4,48 +4,47 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-green.svg)](https://agentskills.io)
 
-Generate publication-ready academic diagrams from methodology text using a five-agent pipeline powered by Gemini. Based on [PaperBanana](https://arxiv.org/abs/2601.23265) (Zhu et al., 2026).
+An [Agent Skill](https://agentskills.io) that generates publication-ready academic diagrams from methodology text. Install it, ask your agent to make a figure, and it handles the rest.
 
-```
-Methodology Text  -->  Retriever  -->  Planner  -->  Stylist  -->  Visualizer  -->  Critic  -->  Output
-                       (classify)     (describe)    (polish)      (render)        (evaluate)
-```
+Based on [PaperBanana](https://arxiv.org/abs/2601.23265) (Zhu et al., 2026) — a five-agent pipeline powered by Gemini.
 
 ## Install
+
+One command. Works with any [Agent Skills-compatible](https://agentskills.io) platform:
 
 ```bash
 npx skills add javidmardanov/paper-banana-skill
 ```
 
-Or clone directly:
+> **Works with:** Claude Code, Cursor, Gemini CLI, GitHub Copilot, Amp, OpenCode, Goose, Roo Code, Windsurf, and [25+ other agents](https://agentskills.io).
+
+Then set up the API key and dependencies:
 
 ```bash
-git clone https://github.com/javidmardanov/paper-banana-skill.git
+export GOOGLE_API_KEY="your-key"  # Free tier: https://aistudio.google.com/apikey
 pip install -r requirements.txt
-export GOOGLE_API_KEY="your-key"
 ```
 
-## Quick Start
+## Usage
 
-**Generate a diagram:**
-
-```bash
-cd skills/paper-banana/scripts
-
-python orchestrate.py \
-  --methodology-file methodology.txt \
-  --caption "Figure 1: Overview of proposed framework" \
-  --mode diagram \
-  --output output/diagram.png
-```
-
-**Or ask your AI agent:**
+Once installed, just ask your agent in natural language:
 
 > "Generate a methodology diagram for my transformer architecture. Here is the methodology section: [paste text]."
 
-**Statistical plots:**
-
 > "Create a bar chart comparing model accuracy. Data: {BERT: 92.3, GPT-4: 88.1, Claude: 95.7}."
+
+> "Improve the aesthetics of this figure: [paste description or attach image]"
+
+Your agent reads the skill's instructions, runs the pipeline scripts, and returns the result. No manual setup beyond the install step.
+
+You can also run the pipeline directly:
+
+```bash
+python skills/paper-banana/scripts/orchestrate.py \
+  --methodology-file methodology.txt \
+  --caption "Figure 1: Overview of proposed framework" \
+  --mode diagram --output output/diagram.png
+```
 
 ## How It Works
 
@@ -55,27 +54,29 @@ python orchestrate.py \
   <img src="assets/how_it_works.png" alt="PaperBanana Pipeline" width="700">
 </p>
 
-| Agent | What it does | Model |
-|-------|-------------|-------|
-| **Retriever** | Classifies methodology into 4 categories, picks 2 reference diagrams | gemini-2.0-flash |
-| **Planner** | Sends reference images + text to VLM, generates detailed description | gemini-2.0-flash |
-| **Stylist** | Applies NeurIPS 2025 aesthetic conventions | gemini-2.0-flash |
-| **Visualizer** | Generates the diagram image | gemini-2.0-flash (image gen) |
-| **Critic** | Scores on faithfulness, readability, conciseness, aesthetics (1-10) | gemini-2.0-flash |
+Five specialized agents run sequentially, each a separate Gemini API call:
 
-The Critic loops back to the Visualizer up to 3 times if faithfulness or readability score below 7.
+| Agent | Role | Model |
+|-------|------|-------|
+| **Retriever** | Classifies methodology, picks 2 reference diagrams from 13 curated examples | gemini-2.0-flash |
+| **Planner** | Sends reference images + text as multimodal prompt, generates detailed description | gemini-2.0-flash |
+| **Stylist** | Applies NeurIPS 2025 aesthetic conventions | gemini-2.0-flash |
+| **Visualizer** | Renders the styled description into an image | gemini-2.0-flash (image gen) |
+| **Critic** | Scores faithfulness, readability, conciseness, aesthetics (1-10) | gemini-2.0-flash |
+
+If faithfulness or readability fall below 7, the Critic revises the description and loops back to the Visualizer (up to 3 times).
 
 **Two modes:**
 - **Diagram mode** — full pipeline, generates images via Gemini
-- **Plot mode** — generates Python matplotlib/seaborn code (code-based = no data hallucination)
+- **Plot mode** — generates executable Python matplotlib/seaborn code (code-based = no data hallucination)
 
-## What's Included
+## What's in the Skill
 
 ```
 skills/paper-banana/
-├── SKILL.md                        # Agent instructions (the skill itself)
-├── scripts/
-│   ├── orchestrate.py              # End-to-end pipeline
+├── SKILL.md                        # The skill — agent reads this to know what to do
+├── scripts/                        # Pipeline scripts the agent executes
+│   ├── orchestrate.py              # End-to-end pipeline runner
 │   ├── retriever.py                # Reference selection
 │   ├── planner.py                  # Multimodal description generation
 │   ├── stylist.py                  # Style application
@@ -83,29 +84,19 @@ skills/paper-banana/
 │   ├── generate_image.py           # Gemini image generation
 │   ├── plot_generator.py           # Matplotlib plot generator
 │   └── validate_output.py          # Dependency checker
-├── references/                     # Style guides, prompts, rubrics
-├── assets/
-│   ├── references/                 # 13 curated NeurIPS 2025 diagrams
-│   ├── palettes/                   # Color palettes (colorblind-safe)
-│   └── matplotlib_styles/          # Academic .mplstyle files
-└── requirements.txt
-```
-
-## Requirements
-
-- Python 3.10+
-- `GOOGLE_API_KEY` environment variable ([get one free](https://aistudio.google.com/apikey))
-
-```bash
-pip install -r requirements.txt
+├── references/                     # Style guides, prompt templates, evaluation rubric
+└── assets/
+    ├── references/                 # 13 curated NeurIPS 2025 methodology diagrams
+    ├── palettes/                   # Color palettes (colorblind-safe)
+    └── matplotlib_styles/          # Academic .mplstyle files
 ```
 
 ## Contributing
 
-Contributions are welcome! Some areas where help is needed:
+Contributions welcome! Some areas where help is needed:
 
 - **More reference diagrams** — the paper uses 292, we have 13. More examples improve the Planner's multimodal learning.
-- **Stricter Critic** — the evaluation agent could be more discerning to better leverage the refinement loop.
+- **Stricter Critic** — the evaluation agent tends to be generous. A more discerning Critic would better leverage the refinement loop.
 - **SVG/vector output** — currently raster only.
 - **Additional style guides** — ICML, CVPR, ICLR formatting conventions.
 
