@@ -8,7 +8,7 @@ test_output/
 !README.md
 !skills/paper-banana/assets/references/*.png
 !skills/paper-banana/assets/references/*.jpg
-!assets/how_it_works.png
+!assets/*.png
 
 # Python
 __pycache__/
