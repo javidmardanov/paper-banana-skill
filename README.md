@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-green.svg)](https://agentskills.io)
 
-An [Agent Skill](https://agentskills.io) that generates publication-ready academic diagrams from methodology text. Install it, ask your agent to make a figure, and it handles the rest.
+Generates publication-ready academic diagrams from methodology text. Install it, ask your agent to make a figure, and it handles the rest.
 
 Based on [PaperBanana](https://arxiv.org/abs/2601.23265) (Zhu et al., 2026) — a five-agent pipeline powered by Gemini.
 
