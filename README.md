@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-green.svg)](https://agentskills.io)
 
-An agentic skill framework to generate publication-ready academic diagrams from methodology text. Five-agent Gemini pipeline implementing PaperBanana (arXiv:2601.23265). Install it, ask your agent to make a figure, and it handles the rest.
+Generates publication-ready academic diagrams from methodology text. Comes with 13 curated reference diagrams — or bring your own.
 
 Based on [PaperBanana](https://arxiv.org/abs/2601.23265) (Zhu et al., 2026) — a five-agent pipeline powered by Gemini.
 
@@ -98,6 +98,43 @@ skills/paper-banana/
     ├── palettes/                   # Color palettes (colorblind-safe)
     └── matplotlib_styles/          # Academic .mplstyle files
 ```
+
+## Custom Reference Images
+
+You can use your own diagrams as visual references. The Planner learns style and layout from these images, so better references = better output.
+
+Create a folder with your images and an `index.json`:
+
+```
+my-references/
+├── index.json
+├── diagram_01.jpg
+└── diagram_02.jpg
+```
+
+Each entry in `index.json`:
+
+```json
+[
+  {
+    "id": "diagram_01",
+    "file": "diagram_01.jpg",
+    "category": "Science & Applications",
+    "caption": "Brief description of what this diagram shows"
+  }
+]
+```
+
+Then pass it to the pipeline:
+
+```bash
+python orchestrate.py \
+  --methodology-file text.txt \
+  --references-dir my-references/ \
+  --output output/diagram.png
+```
+
+Or just drop images directly into `skills/paper-banana/assets/references/` and update the existing `index.json`.
 
 ## Contributing
 

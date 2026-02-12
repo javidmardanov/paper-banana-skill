@@ -74,6 +74,7 @@ def run_diagram_pipeline(
     caption: str,
     output_path: str,
     work_dir: Path,
+    references_dir: str = None,
 ) -> dict:
     """Run the full diagram generation pipeline.
 
@@ -82,6 +83,7 @@ def run_diagram_pipeline(
         caption: The figure caption.
         output_path: Final image output path.
         work_dir: Working directory for intermediate files.
+        references_dir: Optional custom references directory.
 
     Returns:
         Dict with final results including scores and output path.
@@ -93,7 +95,7 @@ def run_diagram_pipeline(
     print("\n" + "=" * 60)
     print("PHASE 1: RETRIEVER — Categorizing & selecting references")
     print("=" * 60)
-    retriever_output = run_retriever(methodology, mode="diagram")
+    retriever_output = run_retriever(methodology, mode="diagram", references_dir=references_dir)
     save_intermediate(retriever_output, "retriever_output", work_dir)
     results["category"] = retriever_output.get("category", "")
     results["visual_intent"] = retriever_output.get("visual_intent", "")
@@ -303,6 +305,8 @@ def main():
                         help="Output file path (default: output/diagram.png)")
     parser.add_argument("--work-dir", type=str, default=None,
                         help="Working directory for intermediates (default: output/work/)")
+    parser.add_argument("--references-dir", type=str, default=None,
+                        help="Custom references directory (must contain index.json + images)")
 
     args = parser.parse_args()
 
@@ -330,7 +334,7 @@ def main():
             print("Error: Diagram mode requires --methodology or --methodology-file")
             sys.exit(1)
 
-        results = run_diagram_pipeline(methodology, args.caption, args.output, work_dir)
+        results = run_diagram_pipeline(methodology, args.caption, args.output, work_dir, args.references_dir)
     else:
         if not args.data:
             print("Error: Plot mode requires --data")

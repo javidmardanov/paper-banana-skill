@@ -108,12 +108,13 @@ Respond with ONLY valid JSON, no markdown fences:
 }}"""
 
 
-def run_retriever(methodology: str, mode: str) -> dict:
+def run_retriever(methodology: str, mode: str, references_dir: str = None) -> dict:
     """Run the Retriever agent via Gemini VLM.
 
     Args:
         methodology: The user's methodology text.
         mode: "diagram" or "plot".
+        references_dir: Optional custom references directory (must contain index.json + images).
 
     Returns:
         Dict with category, visual_intent, and selected_references.
@@ -127,7 +128,14 @@ def run_retriever(methodology: str, mode: str) -> dict:
             "selected_references": [],
         }
 
-    index = load_index()
+    # Use custom references dir if provided
+    ref_dir = Path(references_dir) if references_dir else REFERENCES_DIR
+    index_path = ref_dir / "index.json"
+    if not index_path.exists():
+        print(f"Error: Reference index not found at {index_path}")
+        sys.exit(1)
+    with open(index_path, "r", encoding="utf-8") as f:
+        index = json.load(f)
     categories_text = load_categories()
     candidates_text = format_candidates(index)
     prompt = build_retriever_prompt(methodology, candidates_text, categories_text)
@@ -163,7 +171,7 @@ def run_retriever(methodology: str, mode: str) -> dict:
             entry = index_lookup[ref_id]
             enriched_refs.append({
                 "id": ref_id,
-                "file": str(REFERENCES_DIR / entry["file"]),
+                "file": str(ref_dir / entry["file"]),
                 "caption": entry["caption"],
                 "description": entry.get("description", entry["caption"]),
                 "reason": ref.get("reason", ""),
