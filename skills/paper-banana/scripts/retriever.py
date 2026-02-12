@@ -65,12 +65,10 @@ def format_candidates(index: list[dict]) -> str:
     """Format reference entries as a numbered candidate list for the VLM."""
     lines = []
     for i, entry in enumerate(index, 1):
-        desc = entry["description"][:300]
         lines.append(
             f"{i}. ID: {entry['id']}\n"
             f"   Category: {entry['category']}\n"
-            f"   Caption: {entry['caption']}\n"
-            f"   Description: {desc}"
+            f"   Caption: {entry['caption']}"
         )
     return "\n\n".join(lines)
 
@@ -167,7 +165,7 @@ def run_retriever(methodology: str, mode: str) -> dict:
                 "id": ref_id,
                 "file": str(REFERENCES_DIR / entry["file"]),
                 "caption": entry["caption"],
-                "description": entry["description"],
+                "description": entry.get("description", entry["caption"]),
                 "reason": ref.get("reason", ""),
             })
         else:
