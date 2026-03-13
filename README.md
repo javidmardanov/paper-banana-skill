@@ -10,13 +10,13 @@ Based on [PaperBanana](https://arxiv.org/abs/2601.23265) (Zhu et al., 2026) — 
 
 ## Install
 
-One command. Works with any [Agent Skills-compatible](https://agentskills.io) platform:
+One command. Works with any [Agent Skills-compatible](https://skills.sh) platform:
 
 ```bash
 npx skills add javidmardanov/paper-banana-skill
 ```
 
-> **Works with:** Claude Code, Cursor, Gemini CLI, GitHub Copilot, Amp, OpenCode, Goose, Roo Code, Windsurf, and [25+ other agents](https://agentskills.io).
+> **Works with:** Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Cline, Kimi Code CLI, and OpenCode.
 
 Then set up the API key and install dependencies:
 
