@@ -18,12 +18,25 @@ npx skills add javidmardanov/paper-banana-skill
 
 > **Works with:** Claude Code, Cursor, Gemini CLI, GitHub Copilot, Amp, OpenCode, Goose, Roo Code, Windsurf, and [25+ other agents](https://agentskills.io).
 
-Then set up the API key and dependencies:
+Then set up the API key and install dependencies:
+
+**macOS / Linux (bash/zsh):**
 
 ```bash
-export GOOGLE_API_KEY="your-key"  # Free tier: https://aistudio.google.com/apikey
+export GOOGLE_API_KEY="your-key"
 pip install -r requirements.txt
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:GOOGLE_API_KEY = "your-key"
+pip install -r requirements.txt
+```
+
+> Get a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+>
+> To persist the key across sessions, add the export to your shell profile (`~/.bashrc`, `~/.zshrc`) or on Windows use `[System.Environment]::SetEnvironmentVariable("GOOGLE_API_KEY", "your-key", "User")`.
 
 ## Usage
 
