@@ -8,7 +8,7 @@ Actual Gemini API prompt templates for the 5-agent pipeline in Diagram Mode, fai
 
 ## Phase 1: Retriever (`scripts/retriever.py`)
 
-**Model**: `gemini-2.0-flash`
+**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
 **Input**: Methodology text (text-only)
 **Output**: JSON with category, visual intent, and 2 selected reference IDs
 
@@ -62,7 +62,7 @@ python scripts/retriever.py \
 
 ## Phase 2: Planner (`scripts/planner.py`)
 
-**Model**: `gemini-2.0-flash`
+**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
 **Input**: Multimodal — 2 reference images (PNG) + methodology text + caption
 **Output**: Detailed textual description of the target diagram
 
@@ -118,7 +118,7 @@ python scripts/planner.py \
 
 ## Phase 3: Stylist (`scripts/stylist.py`)
 
-**Model**: `gemini-2.0-flash`
+**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
 **Input**: Planner's description + category + full style guide text
 **Output**: Polished, styled description
 
@@ -171,7 +171,7 @@ python scripts/stylist.py \
 
 ## Phase 4: Visualizer (`scripts/generate_image.py`)
 
-**Model**: `gemini-3-pro-image-preview` (Nano-Banana-Pro)
+**Model**: `gemini-3-pro-image` (Nano Banana Pro; override with `PAPERBANANA_IMAGE_MODEL`)
 **Input**: Styled description text
 **Output**: Generated PNG image
 
@@ -198,14 +198,15 @@ No figure number or caption text within the image.
 python scripts/generate_image.py \
   --prompt-file styled_description.txt \
   --output output/diagram.png \
-  --aspect-ratio 16:9
+  --aspect-ratio 16:9 \
+  --image-size 2K
 ```
 
 ---
 
 ## Phase 5: Critic (`scripts/critic.py`)
 
-**Model**: `gemini-2.0-flash`
+**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
 **Input**: Multimodal — generated image (PNG) + methodology text + styled description + rubric
 **Output**: JSON with 4-dimension scores, pass/fail, suggestions, optional revised description
 
@@ -245,7 +246,7 @@ Your task: Evaluate the generated methodology diagram image against the original
 }
 ```
 
-**Refinement loop**: If `primary_pass` is false, the Critic generates a `revised_description` and the orchestrator loops back to Phase 4 (Visualizer). Maximum 3 iterations.
+**Refinement loop**: If `primary_pass` is false, the Critic generates a `revised_description` and the orchestrator loops back to Phase 4 (Visualizer). Maximum 3 iterations. Each iteration's image is kept as `work/diagram_iter{N}.png`; the best-scoring one is copied to the final output path.
 
 **CLI usage**:
 ```bash

@@ -9,6 +9,13 @@ description: >-
   methodology illustrations, architecture diagrams, statistical plots,
   conference-quality visualizations, flowcharts for papers, NeurIPS/ICML/CVPR
   figures, or improving existing paper figures.
+license: MIT
+compatibility: >-
+  Python 3.10+, network access to the Gemini API, and GOOGLE_API_KEY or
+  GEMINI_API_KEY set. Needs google-genai>=2, matplotlib, seaborn, numpy, pillow.
+metadata:
+  version: "1.1.0"
+  paper: "arXiv:2601.23265"
 ---
 
 # PaperBanana: Academic Illustration Pipeline
@@ -20,9 +27,11 @@ Two output modes:
 - **DIAGRAM MODE**: Each agent is a Python script calling Gemini VLM/image APIs. Run `scripts/orchestrate.py` for end-to-end execution.
 - **PLOT MODE**: Statistical plots generated as executable Python matplotlib/seaborn code (code-based to eliminate data hallucination).
 
-**Requirements**: `GOOGLE_API_KEY` env var (used for VLM calls in retriever/planner/stylist/critic AND image generation in visualizer), Python 3.10+ with `google-genai`, `matplotlib`, `seaborn`, `numpy`, `pillow`.
+**Requirements**: `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) env var, used for the VLM calls in retriever/planner/stylist/critic and for image generation in the visualizer. Python 3.10+ with `google-genai>=2`, `matplotlib`, `seaborn`, `numpy`, `pillow`.
 
-Paper: *PaperBanana: Automating Academic Illustrations with Multi-Agent Systems* (arXiv:2601.23265, Google/PKU)
+**Models**: defaults are `gemini-3.5-flash` (VLM agents) and `gemini-3-pro-image` (Visualizer, "Nano Banana Pro"). Override with `PAPERBANANA_VLM_MODEL` / `PAPERBANANA_IMAGE_MODEL` or the orchestrator's `--vlm-model` / `--image-model` flags. Cheaper options: `gemini-3.1-flash-lite` and `gemini-3.1-flash-image`.
+
+Paper: *PaperBanana: Automating Academic Illustration for AI Scientists* (arXiv:2601.23265, Google/PKU). Official code: https://github.com/dwzhu-pku/PaperBanana
 
 ---
 
@@ -63,7 +72,7 @@ python scripts/orchestrate.py \
   --output output/diagram.png
 ```
 
-The orchestrator chains all 5 agents automatically and handles the Critic's refinement loop (up to 3 iterations). Intermediate outputs are saved to `output/work/` for inspection.
+The orchestrator chains all 5 agents automatically and handles the Critic's refinement loop (up to 3 iterations). Intermediate outputs, including every Visualizer iteration (`diagram_iter{N}.png`), are saved to `output/work/`; the best-scoring image is copied to `--output`. Add `--image-size 1K|2K|4K` (default 2K) to control resolution.
 
 #### Pipeline Details
 
@@ -87,9 +96,9 @@ Read `references/DIAGRAM-PROMPTS.md` for the actual Gemini prompt templates used
 - Outputs the polished description only
 
 **Phase 4: VISUALIZER** (`scripts/generate_image.py`) — Gemini Image API call
-- Uses `gemini-3-pro-image-preview` to generate the diagram image from the styled description
+- Uses `gemini-3-pro-image` (Nano Banana Pro) by default to render the styled description; `gemini-3.1-flash-image` is a cheaper alternative
 - Prepends quality prefix (high-res, legible text, clean background, no watermarks)
-- Aspect ratio selected based on visual intent (16:9 for pipelines, 3:2 for modules)
+- Aspect ratio selected based on visual intent (16:9 for pipelines, 3:2 for modules); output resolution 2K by default
 
 **Phase 5: CRITIC** (`scripts/critic.py`) — Multimodal Gemini VLM call
 - Sends the generated image + methodology text to Gemini for multimodal evaluation
@@ -214,6 +223,7 @@ If code execution failed, analyze the error, simplify the approach, and regenera
 | File | Purpose | When to Read |
 |------|---------|-------------|
 | `scripts/orchestrate.py` | End-to-end pipeline runner | Diagram mode primary entry point |
+| `scripts/common.py` | Model defaults (env-overridable) + Gemini client | Imported by all diagram scripts |
 | `scripts/retriever.py` | VLM-based reference selection | Phase 1 (diagram mode) |
 | `scripts/planner.py` | Multimodal description generation | Phase 2 (diagram mode) |
 | `scripts/stylist.py` | VLM-based style application | Phase 3 (diagram mode) |
@@ -236,10 +246,14 @@ If code execution failed, analyze the error, simplify the approach, and regenera
 
 ```bash
 # Required for all Gemini API calls (VLM reasoning + image generation)
-export GOOGLE_API_KEY="your-api-key-here"
+export GOOGLE_API_KEY="your-api-key-here"   # GEMINI_API_KEY also works
+
+# Optional: swap models (defaults shown). Cheaper: gemini-3.1-flash-lite / gemini-3.1-flash-image
+export PAPERBANANA_VLM_MODEL="gemini-3.5-flash"
+export PAPERBANANA_IMAGE_MODEL="gemini-3-pro-image"
 
 # Install dependencies
-pip install google-genai matplotlib seaborn numpy pillow
+pip install "google-genai>=2" matplotlib seaborn numpy pillow
 ```
 
-Verify setup: `python scripts/validate_output.py --check-deps`
+Verify setup: `python scripts/validate_output.py --check-deps --check-api` (checks packages, the API key, and that both models are reachable).

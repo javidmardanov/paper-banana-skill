@@ -16,39 +16,15 @@ Requirements:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("Error: google-genai package not installed.")
-    print("Install with: pip install google-genai")
-    sys.exit(1)
-
-try:
-    from PIL import Image
-    import io
-except ImportError:
-    print("Error: Pillow not installed. Install with: pip install pillow")
-    sys.exit(1)
+from common import get_client, strip_code_fences, vlm_model
+from google.genai import types
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
 RUBRIC_PATH = SKILL_DIR / "references" / "EVALUATION-RUBRIC.md"
-
-VLM_MODEL = "gemini-2.0-flash"
-
-
-def get_api_key() -> str:
-    """Get Google API key from environment."""
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        print("Error: GOOGLE_API_KEY environment variable not set.")
-        sys.exit(1)
-    return key
 
 
 def load_rubric() -> str:
@@ -135,8 +111,7 @@ def run_critic(
     caption = stylist_output.get("caption", "")
     rubric = load_rubric()
 
-    api_key = get_api_key()
-    client = genai.Client(api_key=api_key)
+    client = get_client()
 
     # Build multimodal content: image + evaluation prompt
     content_parts = []
@@ -159,7 +134,7 @@ def run_critic(
     content_parts.append(types.Part.from_text(text=prompt_text))
 
     response = client.models.generate_content(
-        model=VLM_MODEL,
+        model=vlm_model(),
         contents=types.Content(parts=content_parts, role="user"),
         config=types.GenerateContentConfig(
             temperature=0.2,
@@ -167,13 +142,7 @@ def run_critic(
         ),
     )
 
-    response_text = response.text.strip()
-    if response_text.startswith("```"):
-        lines = response_text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        response_text = "\n".join(lines)
-
-    result = json.loads(response_text)
+    result = json.loads(strip_code_fences(response.text))
     result["iteration"] = iteration
 
     # Print evaluation summary

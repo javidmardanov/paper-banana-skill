@@ -15,43 +15,16 @@ Requirements:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("Error: google-genai package not installed.")
-    print("Install with: pip install google-genai")
-    sys.exit(1)
+from common import get_client, strip_code_fences, vlm_model
+from google.genai import types
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
 REFERENCES_DIR = SKILL_DIR / "assets" / "references"
-INDEX_PATH = REFERENCES_DIR / "index.json"
 CATEGORIES_PATH = SKILL_DIR / "references" / "DIAGRAM-CATEGORIES.md"
-
-VLM_MODEL = "gemini-2.0-flash"
-
-
-def get_api_key() -> str:
-    """Get Google API key from environment."""
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        print("Error: GOOGLE_API_KEY environment variable not set.")
-        sys.exit(1)
-    return key
-
-
-def load_index() -> list[dict]:
-    """Load the reference image index."""
-    if not INDEX_PATH.exists():
-        print(f"Error: Reference index not found at {INDEX_PATH}")
-        sys.exit(1)
-    with open(INDEX_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def load_categories() -> str:
@@ -140,12 +113,11 @@ def run_retriever(methodology: str, mode: str, references_dir: str = None) -> di
     candidates_text = format_candidates(index)
     prompt = build_retriever_prompt(methodology, candidates_text, categories_text)
 
-    api_key = get_api_key()
-    client = genai.Client(api_key=api_key)
+    client = get_client()
 
     print("Retriever: Classifying methodology and selecting references...")
     response = client.models.generate_content(
-        model=VLM_MODEL,
+        model=vlm_model(),
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.2,
@@ -153,14 +125,7 @@ def run_retriever(methodology: str, mode: str, references_dir: str = None) -> di
         ),
     )
 
-    response_text = response.text.strip()
-    # Strip markdown fences if present
-    if response_text.startswith("```"):
-        lines = response_text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        response_text = "\n".join(lines)
-
-    result = json.loads(response_text)
+    result = json.loads(strip_code_fences(response.text))
 
     # Enrich selected references with file paths and metadata from index
     index_lookup = {entry["id"]: entry for entry in index}
@@ -198,6 +163,8 @@ def main():
                         help="Output mode (default: diagram)")
     parser.add_argument("--output", type=str, default="retriever_output.json",
                         help="Output JSON path (default: retriever_output.json)")
+    parser.add_argument("--references-dir", type=str, default=None,
+                        help="Custom references directory (must contain index.json + images)")
 
     args = parser.parse_args()
 
@@ -210,7 +177,7 @@ def main():
     else:
         methodology = args.methodology
 
-    result = run_retriever(methodology, args.mode)
+    result = run_retriever(methodology, args.mode, args.references_dir)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

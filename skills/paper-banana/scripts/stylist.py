@@ -15,32 +15,15 @@ Requirements:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("Error: google-genai package not installed.")
-    print("Install with: pip install google-genai")
-    sys.exit(1)
+from common import get_client, vlm_model
+from google.genai import types
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
 STYLE_GUIDE_PATH = SKILL_DIR / "references" / "DIAGRAM-STYLE-GUIDE.md"
-
-VLM_MODEL = "gemini-2.0-flash"
-
-
-def get_api_key() -> str:
-    """Get Google API key from environment."""
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        print("Error: GOOGLE_API_KEY environment variable not set.")
-        sys.exit(1)
-    return key
 
 
 def load_style_guide() -> str:
@@ -105,14 +88,13 @@ def run_stylist(planner_output: dict, category_override: str = None) -> dict:
     category = category_override or planner_output.get("category", "Science & Applications")
     style_guide = load_style_guide()
 
-    api_key = get_api_key()
-    client = genai.Client(api_key=api_key)
+    client = get_client()
 
     prompt = build_stylist_prompt(description, category, style_guide)
 
     print(f"Stylist: Applying {category} style to description...")
     response = client.models.generate_content(
-        model=VLM_MODEL,
+        model=vlm_model(),
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.3,

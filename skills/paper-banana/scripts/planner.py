@@ -16,38 +16,14 @@ Requirements:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("Error: google-genai package not installed.")
-    print("Install with: pip install google-genai")
-    sys.exit(1)
-
-try:
-    from PIL import Image
-    import io
-except ImportError:
-    print("Error: Pillow not installed. Install with: pip install pillow")
-    sys.exit(1)
+from common import get_client, vlm_model
+from google.genai import types
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
-
-VLM_MODEL = "gemini-2.0-flash"
-
-
-def get_api_key() -> str:
-    """Get Google API key from environment."""
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        print("Error: GOOGLE_API_KEY environment variable not set.")
-        sys.exit(1)
-    return key
 
 
 def load_image_bytes(image_path: str) -> bytes:
@@ -110,8 +86,7 @@ def run_planner(methodology: str, caption: str, references_data: dict) -> dict:
     visual_intent = references_data.get("visual_intent", "Pipeline/Flow")
     selected_refs = references_data.get("selected_references", [])
 
-    api_key = get_api_key()
-    client = genai.Client(api_key=api_key)
+    client = get_client()
 
     # Build multimodal content parts
     content_parts = []
@@ -141,7 +116,7 @@ def run_planner(methodology: str, caption: str, references_data: dict) -> dict:
 
     print("Planner: Generating detailed diagram description with multimodal context...")
     response = client.models.generate_content(
-        model=VLM_MODEL,
+        model=vlm_model(),
         contents=types.Content(parts=content_parts, role="user"),
         config=types.GenerateContentConfig(
             temperature=0.4,

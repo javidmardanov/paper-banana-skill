@@ -32,6 +32,7 @@ Requirements:
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from common import image_model, vlm_model
 from retriever import run_retriever
 from planner import run_planner
 from stylist import run_stylist
@@ -61,6 +63,15 @@ def determine_aspect_ratio(visual_intent: str) -> str:
     return mapping.get(visual_intent, "16:9")
 
 
+def _primary_score(critic_output: dict) -> float:
+    """Rank iterations by the Critic's primary dimensions (faithfulness + readability)."""
+    scores = critic_output.get("scores", {})
+    try:
+        return float(scores.get("faithfulness", 0)) + float(scores.get("readability", 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def save_intermediate(data: dict, name: str, work_dir: Path) -> Path:
     """Save intermediate JSON output to working directory."""
     path = work_dir / f"{name}.json"
@@ -75,6 +86,7 @@ def run_diagram_pipeline(
     output_path: str,
     work_dir: Path,
     references_dir: str = None,
+    image_size: str = "2K",
 ) -> dict:
     """Run the full diagram generation pipeline.
 
@@ -84,12 +96,18 @@ def run_diagram_pipeline(
         output_path: Final image output path.
         work_dir: Working directory for intermediate files.
         references_dir: Optional custom references directory.
+        image_size: Visualizer output resolution ("1K", "2K", "4K").
 
     Returns:
         Dict with final results including scores and output path.
     """
-    results = {"mode": "diagram", "iterations": []}
+    results = {
+        "mode": "diagram",
+        "iterations": [],
+        "models": {"vlm": vlm_model(), "image": image_model()},
+    }
     start_time = time.time()
+    print(f"Models: VLM={vlm_model()}  image={image_model()}")
 
     # === Phase 1: Retriever ===
     print("\n" + "=" * 60)
@@ -118,20 +136,23 @@ def run_diagram_pipeline(
     current_description = stylist_output["styled_description"]
     aspect_ratio = determine_aspect_ratio(results.get("visual_intent", ""))
 
+    best = None  # (score, iteration, image_path, critic_output)
+
     for iteration in range(1, MAX_REFINEMENTS + 1):
         print("\n" + "=" * 60)
         print(f"PHASE 4: VISUALIZER — Generating image (iteration {iteration})")
         print("=" * 60)
 
-        # Generate image
-        full_prompt = build_prompt(current_description, aspect_ratio)
-        iter_output = output_path if iteration == 1 else f"{output_path}.iter{iteration}.png"
+        # Every iteration is kept in work_dir; the best one is copied to output_path.
+        full_prompt = build_prompt(current_description)
+        iter_output = str(work_dir / f"diagram_iter{iteration}.png")
 
         try:
-            result_path = generate_image(
+            generate_image(
                 prompt=full_prompt,
-                output_path=output_path,
+                output_path=iter_output,
                 aspect_ratio=aspect_ratio,
+                image_size=image_size,
             )
         except RuntimeError as e:
             print(f"Error: Image generation failed: {e}")
@@ -142,44 +163,45 @@ def run_diagram_pipeline(
         print(f"PHASE 5: CRITIC — Evaluating image (iteration {iteration})")
         print("=" * 60)
 
-        # Evaluate image
         critic_output = run_critic(
-            image_path=output_path,
+            image_path=iter_output,
             methodology=methodology,
             stylist_output=stylist_output,
             iteration=iteration,
         )
+        critic_output["image_path"] = iter_output
         save_intermediate(critic_output, f"critic_output_iter{iteration}", work_dir)
         results["iterations"].append(critic_output)
 
-        # Check if accepted
+        score = _primary_score(critic_output)
+        if best is None or score > best[0]:
+            best = (score, iteration, iter_output, critic_output)
+
         if critic_output.get("primary_pass", False):
             print(f"\n  Image ACCEPTED at iteration {iteration}")
-            results["accepted"] = True
-            results["final_scores"] = critic_output.get("scores", {})
             break
 
-        # Check if we have more iterations
         if iteration >= MAX_REFINEMENTS:
-            print(f"\n  Max refinements ({MAX_REFINEMENTS}) reached. Accepting best version.")
-            results["accepted"] = True
-            results["final_scores"] = critic_output.get("scores", {})
+            print(f"\n  Max refinements ({MAX_REFINEMENTS}) reached. Keeping best-scoring version.")
             results["max_refinements_reached"] = True
             break
 
-        # Get revised description for next iteration
         revised = critic_output.get("revised_description")
-        if revised:
-            print(f"\n  Revising description for iteration {iteration + 1}...")
-            current_description = revised
-            # Update stylist output for critic context in next iteration
-            stylist_output["styled_description"] = revised
-            save_intermediate(stylist_output, f"stylist_output_revised_iter{iteration}", work_dir)
-        else:
-            print("  No revised description provided. Accepting current version.")
-            results["accepted"] = True
-            results["final_scores"] = critic_output.get("scores", {})
+        if not revised:
+            print("  No revised description provided. Keeping current version.")
             break
+        print(f"\n  Revising description for iteration {iteration + 1}...")
+        current_description = revised
+        stylist_output["styled_description"] = revised
+        save_intermediate(stylist_output, f"stylist_output_revised_iter{iteration}", work_dir)
+
+    if best is not None:
+        _, best_iter, best_path, best_critic = best
+        shutil.copyfile(best_path, output_path)
+        results["accepted"] = True
+        results["best_iteration"] = best_iter
+        results["final_scores"] = best_critic.get("scores", {})
+        print(f"\n  Final image: iteration {best_iter} copied to {output_path}")
 
     elapsed = time.time() - start_time
     results["output_path"] = output_path
@@ -260,19 +282,24 @@ def print_summary(results: dict) -> None:
         print(f"  Category: {results.get('category', 'N/A')}")
         print(f"  Visual intent: {results.get('visual_intent', 'N/A')}")
         print(f"  Iterations: {len(results.get('iterations', []))}")
+        if results.get("best_iteration"):
+            print(f"  Best iteration: {results['best_iteration']}")
+        models = results.get("models", {})
+        if models:
+            print(f"  Models: VLM={models.get('vlm')}  image={models.get('image')}")
         print(f"  Accepted: {results.get('accepted', False)}")
         print(f"  Elapsed: {results.get('elapsed_seconds', 0)}s")
 
         scores = results.get("final_scores", {})
         if scores:
-            print(f"  Final scores:")
+            print("  Final scores:")
             print(f"    Faithfulness: {scores.get('faithfulness', '?')}/10")
             print(f"    Readability:  {scores.get('readability', '?')}/10")
             print(f"    Conciseness:  {scores.get('conciseness', '?')}/10")
             print(f"    Aesthetics:   {scores.get('aesthetics', '?')}/10")
 
         if results.get("max_refinements_reached"):
-            print(f"  Note: Max refinements reached. Manual review recommended.")
+            print("  Note: Max refinements reached. Manual review recommended.")
 
     print(f"  Intermediates: {results.get('work_dir', 'N/A')}")
 
@@ -307,8 +334,20 @@ def main():
                         help="Working directory for intermediates (default: output/work/)")
     parser.add_argument("--references-dir", type=str, default=None,
                         help="Custom references directory (must contain index.json + images)")
+    parser.add_argument("--image-size", choices=["1K", "2K", "4K"], default="2K",
+                        help="Diagram output resolution (default: 2K)")
+    parser.add_argument("--vlm-model", type=str, default=None,
+                        help=f"Gemini model for Retriever/Planner/Stylist/Critic (default: {vlm_model()})")
+    parser.add_argument("--image-model", type=str, default=None,
+                        help=f"Gemini image model for the Visualizer (default: {image_model()})")
 
     args = parser.parse_args()
+
+    # CLI overrides win over PAPERBANANA_*_MODEL environment variables.
+    if args.vlm_model:
+        os.environ["PAPERBANANA_VLM_MODEL"] = args.vlm_model
+    if args.image_model:
+        os.environ["PAPERBANANA_IMAGE_MODEL"] = args.image_model
 
     # Set up working directory
     if args.work_dir:
@@ -334,7 +373,8 @@ def main():
             print("Error: Diagram mode requires --methodology or --methodology-file")
             sys.exit(1)
 
-        results = run_diagram_pipeline(methodology, args.caption, args.output, work_dir, args.references_dir)
+        results = run_diagram_pipeline(methodology, args.caption, args.output, work_dir,
+                                       args.references_dir, args.image_size)
     else:
         if not args.data:
             print("Error: Plot mode requires --data")

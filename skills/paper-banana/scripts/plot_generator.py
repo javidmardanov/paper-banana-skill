@@ -240,12 +240,12 @@ def plot_box(config: dict, ax: plt.Axes, colors: list):
     data = config["data"]
     labels = config.get("labels", [f"Group {i+1}" for i in range(len(data))])
 
-    if HAS_SEABORN:
-        bp = sns.boxplot(data=data, ax=ax, palette=colors[:len(data)])
-    else:
-        bp = ax.boxplot(data, labels=labels, patch_artist=True)
-        for patch, color in zip(bp["boxes"], colors):
-            patch.set_facecolor(color)
+    # Plain matplotlib: avoids seaborn's palette-without-hue deprecation warnings.
+    bp = ax.boxplot(data, tick_labels=labels, patch_artist=True,
+                    medianprops={"color": "#333333"})
+    for patch, color in zip(bp["boxes"], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.85)
 
     ax.set_xlabel(config.get("xlabel", ""))
     ax.set_ylabel(config.get("ylabel", ""))
@@ -261,7 +261,7 @@ def plot_violin(config: dict, ax: plt.Axes, colors: list):
     if HAS_SEABORN:
         sns.violinplot(data=data, ax=ax, palette=colors[:len(data)], inner="quartile")
     else:
-        parts = ax.violinplot(data, showmedians=True, showquartiles=True)
+        parts = ax.violinplot(data, showmedians=True)
         for i, pc in enumerate(parts.get("bodies", [])):
             pc.set_facecolor(colors[i % len(colors)])
             pc.set_alpha(0.7)

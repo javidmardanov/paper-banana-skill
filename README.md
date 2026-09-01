@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-green.svg)](https://agentskills.io)
+[![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-green.svg)](https://skills.sh)
 
 Generates publication-ready academic diagrams from methodology text. Comes with 13 curated reference diagrams — or bring your own.
 
@@ -37,6 +37,9 @@ pip install -r requirements.txt
 > Get a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 >
 > To persist the key across sessions, add the export to your shell profile (`~/.bashrc`, `~/.zshrc`) or on Windows use `[System.Environment]::SetEnvironmentVariable("GOOGLE_API_KEY", "your-key", "User")`.
+>
+> `GEMINI_API_KEY` works too. Verify packages, key, and model access with:
+> `python skills/paper-banana/scripts/validate_output.py --check-deps --check-api`
 
 ## Usage
 
@@ -79,13 +82,30 @@ Five specialized agents run sequentially, each a separate Gemini API call:
 
 | Agent | Role | Model |
 |-------|------|-------|
-| **Retriever** | Classifies methodology, picks 2 reference diagrams from 13 curated examples | gemini-2.0-flash |
-| **Planner** | Sends reference images + text as multimodal prompt, generates detailed description | gemini-2.0-flash |
-| **Stylist** | Applies NeurIPS 2025 aesthetic conventions | gemini-2.0-flash |
-| **Visualizer** | Renders the styled description into an image | gemini-2.0-flash (image gen) |
-| **Critic** | Scores faithfulness, readability, conciseness, aesthetics (1-10) | gemini-2.0-flash |
+| **Retriever** | Classifies methodology, picks 2 reference diagrams from 13 curated examples | gemini-3.5-flash |
+| **Planner** | Sends reference images + text as multimodal prompt, generates detailed description | gemini-3.5-flash |
+| **Stylist** | Applies NeurIPS 2025 aesthetic conventions | gemini-3.5-flash |
+| **Visualizer** | Renders the styled description into an image | gemini-3-pro-image (Nano Banana Pro) |
+| **Critic** | Scores faithfulness, readability, conciseness, aesthetics (1-10) | gemini-3.5-flash |
 
-If faithfulness or readability fall below 7, the Critic revises the description and loops back to the Visualizer (up to 3 times).
+If faithfulness or readability fall below 7, the Critic revises the description and loops back to the Visualizer (up to 3 times). Every iteration is kept in `output/work/` and the best-scoring image is copied to the output path.
+
+### Choosing models
+
+Defaults are Google's current GA models. Override them with environment variables or orchestrator flags:
+
+| Variable | Default | Cheaper alternative |
+|----------|---------|---------------------|
+| `PAPERBANANA_VLM_MODEL` | `gemini-3.5-flash` | `gemini-3.1-flash-lite` |
+| `PAPERBANANA_IMAGE_MODEL` | `gemini-3-pro-image` | `gemini-3.1-flash-image` |
+
+```bash
+python skills/paper-banana/scripts/orchestrate.py --methodology-file methodology.txt \
+  --vlm-model gemini-3.1-flash-lite --image-model gemini-3.1-flash-image --image-size 1K \
+  --output output/diagram.png
+```
+
+> **Upgrading from 1.0?** Google shut down `gemini-2.0-flash` (June 1, 2026) and `gemini-3-pro-image-preview` (June 25, 2026), so earlier versions of this skill no longer work. Re-run the install command to pick up 1.1.0.
 
 **Two modes:**
 - **Diagram mode** — full pipeline, generates images via Gemini
@@ -97,6 +117,7 @@ If faithfulness or readability fall below 7, the Critic revises the description 
 skills/paper-banana/
 ├── SKILL.md                        # The skill — agent reads this to know what to do
 ├── scripts/                        # Pipeline scripts the agent executes
+│   ├── common.py                   # Model defaults (env-overridable) + Gemini client
 │   ├── orchestrate.py              # End-to-end pipeline runner
 │   ├── retriever.py                # Reference selection
 │   ├── planner.py                  # Multimodal description generation
@@ -153,7 +174,7 @@ Or just drop images directly into `skills/paper-banana/assets/references/` and u
 
 Contributions welcome! Some areas where help is needed:
 
-- **More reference diagrams** — the paper uses 292, we have 13. More examples improve the Planner's multimodal learning.
+- **More reference diagrams** — we bundle 13; the authors have since released the full 292-case [PaperBananaBench](https://github.com/dwzhu-pku/PaperBanana). An optional downloader for it would improve the Planner's multimodal learning.
 - **Stricter Critic** — the evaluation agent tends to be generous. A more discerning Critic would better leverage the refinement loop.
 - **SVG/vector output** — currently raster only.
 - **Additional style guides** — ICML, CVPR, ICLR formatting conventions.
@@ -173,9 +194,14 @@ This skill implements concepts from:
 > [arXiv:2601.23265](https://arxiv.org/abs/2601.23265), 2026.
 
 - [Official project page](https://dwzhu-pku.github.io/PaperBanana/)
+- [Official code and PaperBananaBench](https://github.com/dwzhu-pku/PaperBanana) (Apache-2.0)
 - [Reference implementation](https://github.com/llmsresearch/paperbanana) (unofficial, MIT)
 
 Bundled reference diagrams are from open-access arXiv papers, sourced via the [llmsresearch/paperbanana](https://github.com/llmsresearch/paperbanana) dataset (MIT). Each image is attributed by arXiv ID.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

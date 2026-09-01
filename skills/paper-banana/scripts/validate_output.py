@@ -6,6 +6,7 @@ output files exist and meet basic quality requirements.
 
 Usage:
     python validate_output.py --check-deps
+    python validate_output.py --check-api
     python validate_output.py --check-code generated_plot.py
     python validate_output.py --check-image output/diagram.png
     python validate_output.py --run generated_plot.py --output output/figure.pdf
@@ -14,7 +15,6 @@ Usage:
 import argparse
 import ast
 import importlib
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -51,11 +51,32 @@ def check_dependencies() -> dict:
     results = {}
     for package_name, import_name in REQUIRED_PACKAGES.items():
         try:
-            mod = importlib.import_module(import_name.split(".")[0])
+            mod = importlib.import_module(import_name)
             version = getattr(mod, "__version__", "unknown")
             results[package_name] = {"installed": True, "version": version}
         except ImportError:
             results[package_name] = {"installed": False, "version": None}
+    return results
+
+
+def check_api() -> dict:
+    """Verify the API key works and the configured Gemini models are reachable.
+
+    Returns:
+        Dictionary mapping model name to {"role", "ok", "error"}.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from common import get_client, image_model, vlm_model
+
+    client = get_client()
+    results = {}
+    for role, name in (("vlm", vlm_model()), ("image", image_model())):
+        try:
+            client.models.get(model=name)
+            results[name] = {"role": role, "ok": True, "error": None}
+        except Exception as e:  # noqa: BLE001 - surface any API/auth failure
+            first_line = str(e).strip().splitlines()[0] if str(e).strip() else repr(e)
+            results[name] = {"role": role, "ok": False, "error": first_line[:200]}
     return results
 
 
@@ -236,6 +257,8 @@ def main():
     )
     parser.add_argument("--check-deps", action="store_true",
                         help="Check if all required packages are installed")
+    parser.add_argument("--check-api", action="store_true",
+                        help="Check the API key and that the configured Gemini models are reachable")
     parser.add_argument("--check-code", type=str,
                         help="Validate generated Python code")
     parser.add_argument("--check-image", type=str,
@@ -247,7 +270,7 @@ def main():
 
     args = parser.parse_args()
 
-    if not any([args.check_deps, args.check_code, args.check_image, args.run]):
+    if not any([args.check_deps, args.check_api, args.check_code, args.check_image, args.run]):
         parser.print_help()
         sys.exit(1)
 
@@ -269,6 +292,20 @@ def main():
             sys.exit(1)
         else:
             print("\nAll dependencies installed.")
+
+    if args.check_api:
+        print("Checking Gemini API access...")
+        results = check_api()
+        all_ok = True
+        for model, info in results.items():
+            marker = "+" if info["ok"] else "-"
+            status = "reachable" if info["ok"] else f"FAILED: {info['error']}"
+            print(f"  [{marker}] {info['role']:5s} {model}: {status}")
+            all_ok = all_ok and info["ok"]
+        if not all_ok:
+            print("\nSet PAPERBANANA_VLM_MODEL / PAPERBANANA_IMAGE_MODEL to a model your key can use.")
+            sys.exit(1)
+        print("\nAPI key and models OK.")
 
     if args.check_code:
         print(f"Validating code: {args.check_code}")
