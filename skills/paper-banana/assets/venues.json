@@ -1,0 +1,44 @@
+{
+  "neurips": {
+    "name": "NeurIPS",
+    "columns": 1,
+    "text_width_in": 5.5,
+    "column_width_in": 5.5,
+    "notes": "Single-column layout; figures span the 5.5in text width. Soft pastel zone backgrounds, rounded modules, and rich iconography are common in methodology diagrams. Sans-serif labels."
+  },
+  "iclr": {
+    "name": "ICLR",
+    "columns": 1,
+    "text_width_in": 5.5,
+    "column_width_in": 5.5,
+    "notes": "Single-column layout, same 5.5in text width as NeurIPS. Diagrams tend to be slightly more minimal; clear left-to-right flow and restrained colors."
+  },
+  "icml": {
+    "name": "ICML",
+    "columns": 2,
+    "text_width_in": 6.75,
+    "column_width_in": 3.25,
+    "notes": "Two-column layout. Single-column figures are only 3.25in wide, so keep labels large and layouts compact; use full-width (6.75in) figures for pipelines with many stages."
+  },
+  "cvpr": {
+    "name": "CVPR / ICCV / ECCV",
+    "columns": 2,
+    "text_width_in": 6.875,
+    "column_width_in": 3.25,
+    "notes": "Two-column vision venues. Architecture diagrams often include image thumbnails and feature-map blocks; spatial/geometric precision is valued. Full-width teaser figures at the top of page 1 are common."
+  },
+  "acl": {
+    "name": "ACL / EMNLP / NAACL",
+    "columns": 2,
+    "text_width_in": 6.3,
+    "column_width_in": 3.03,
+    "notes": "Two-column NLP venues with a narrow 3.03in column. Prefer vertical or compact layouts for single-column figures; example text snippets and token sequences are common visual elements."
+  },
+  "aaai": {
+    "name": "AAAI",
+    "columns": 2,
+    "text_width_in": 6.75,
+    "column_width_in": 3.3,
+    "notes": "Two-column layout. Conservative styling; keep color count low and ensure grayscale legibility."
+  }
+}

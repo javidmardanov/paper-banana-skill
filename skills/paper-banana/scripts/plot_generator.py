@@ -24,6 +24,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from common import load_venue, venue_figure_width
+
 try:
     import seaborn as sns
     HAS_SEABORN = True
@@ -240,12 +242,12 @@ def plot_box(config: dict, ax: plt.Axes, colors: list):
     data = config["data"]
     labels = config.get("labels", [f"Group {i+1}" for i in range(len(data))])
 
-    if HAS_SEABORN:
-        bp = sns.boxplot(data=data, ax=ax, palette=colors[:len(data)])
-    else:
-        bp = ax.boxplot(data, labels=labels, patch_artist=True)
-        for patch, color in zip(bp["boxes"], colors):
-            patch.set_facecolor(color)
+    # Plain matplotlib: avoids seaborn's palette-without-hue deprecation warnings.
+    bp = ax.boxplot(data, tick_labels=labels, patch_artist=True,
+                    medianprops={"color": "#333333"})
+    for patch, color in zip(bp["boxes"], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.85)
 
     ax.set_xlabel(config.get("xlabel", ""))
     ax.set_ylabel(config.get("ylabel", ""))
@@ -261,7 +263,7 @@ def plot_violin(config: dict, ax: plt.Axes, colors: list):
     if HAS_SEABORN:
         sns.violinplot(data=data, ax=ax, palette=colors[:len(data)], inner="quartile")
     else:
-        parts = ax.violinplot(data, showmedians=True, showquartiles=True)
+        parts = ax.violinplot(data, showmedians=True)
         for i, pc in enumerate(parts.get("bodies", [])):
             pc.set_facecolor(colors[i % len(colors)])
             pc.set_alpha(0.7)
@@ -360,8 +362,12 @@ def generate_plot(config: dict, output_path: str):
         palette_path = DEFAULT_PALETTE
     colors = load_palette(palette_path)
 
-    # Figure size
-    figsize = config.get("figsize", (6.875, 4.5))
+    # Figure size: an explicit figsize wins; otherwise derive it from the venue's column/text width.
+    figsize = config.get("figsize")
+    if figsize is None:
+        venue = load_venue(config.get("venue", "neurips"))
+        width = venue_figure_width(venue, config.get("width", "double"))
+        figsize = (width, width * float(config.get("aspect", 0.62)))
     if isinstance(figsize, list):
         figsize = tuple(figsize)
 
@@ -393,6 +399,10 @@ def main():
                         help="JSON data string (used with --type)")
     parser.add_argument("--output", type=str, default="output/figure.pdf",
                         help="Output file path (default: output/figure.pdf)")
+    parser.add_argument("--venue", type=str, default=None,
+                        help="Venue style pack for figure width: neurips, iclr, icml, cvpr, acl, aaai")
+    parser.add_argument("--width", choices=["single", "double"], default=None,
+                        help="Column span: single (one column) or double (full text width)")
 
     args = parser.parse_args()
 
@@ -414,6 +424,10 @@ def main():
         parser.error("Either --config or both --type and --data are required")
         return
 
+    if args.venue:
+        config["venue"] = args.venue
+    if args.width:
+        config["width"] = args.width
     generate_plot(config, args.output)
 
 

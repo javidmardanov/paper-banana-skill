@@ -6,6 +6,7 @@ output files exist and meet basic quality requirements.
 
 Usage:
     python validate_output.py --check-deps
+    python validate_output.py --check-api
     python validate_output.py --check-code generated_plot.py
     python validate_output.py --check-image output/diagram.png
     python validate_output.py --run generated_plot.py --output output/figure.pdf
@@ -14,7 +15,6 @@ Usage:
 import argparse
 import ast
 import importlib
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -41,6 +41,12 @@ REQUIRED_PACKAGES = {
     "google-genai": "google.genai",
 }
 
+OPTIONAL_PACKAGES = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "pypdf": "pypdf",
+}
+
 
 def check_dependencies() -> dict:
     """Check which required packages are installed.
@@ -51,11 +57,30 @@ def check_dependencies() -> dict:
     results = {}
     for package_name, import_name in REQUIRED_PACKAGES.items():
         try:
-            mod = importlib.import_module(import_name.split(".")[0])
+            mod = importlib.import_module(import_name)
             version = getattr(mod, "__version__", "unknown")
             results[package_name] = {"installed": True, "version": version}
         except ImportError:
             results[package_name] = {"installed": False, "version": None}
+    return results
+
+
+def check_api() -> dict:
+    """Verify the API key works and the configured Gemini models are reachable.
+
+    Returns:
+        Dictionary mapping model name to {"role", "ok", "error"}.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from common import ProviderError, check_model, image_model, vlm_model
+
+    results = {}
+    for role, name in (("vlm", vlm_model()), ("image", image_model())):
+        try:
+            check_model(name)
+            results[name] = {"role": role, "ok": True, "error": None}
+        except ProviderError as e:
+            results[name] = {"role": role, "ok": False, "error": str(e)}
     return results
 
 
@@ -236,6 +261,8 @@ def main():
     )
     parser.add_argument("--check-deps", action="store_true",
                         help="Check if all required packages are installed")
+    parser.add_argument("--check-api", action="store_true",
+                        help="Check the API key and that the configured Gemini models are reachable")
     parser.add_argument("--check-code", type=str,
                         help="Validate generated Python code")
     parser.add_argument("--check-image", type=str,
@@ -247,7 +274,7 @@ def main():
 
     args = parser.parse_args()
 
-    if not any([args.check_deps, args.check_code, args.check_image, args.run]):
+    if not any([args.check_deps, args.check_api, args.check_code, args.check_image, args.run]):
         parser.print_help()
         sys.exit(1)
 
@@ -262,13 +289,35 @@ def main():
             if not info["installed"]:
                 all_installed = False
 
+        print("Optional (other providers, PDF input):")
+        for package_name, import_name in OPTIONAL_PACKAGES.items():
+            try:
+                mod = importlib.import_module(import_name)
+                print(f"  [+] {package_name}: v{getattr(mod, '__version__', 'unknown')}")
+            except ImportError:
+                print(f"  [ ] {package_name}: not installed")
+
         if not all_installed:
             print("\nInstall missing packages with:")
             missing = [p for p, i in results.items() if not i["installed"]]
             print(f"  pip install {' '.join(missing)}")
             sys.exit(1)
         else:
-            print("\nAll dependencies installed.")
+            print("\nAll required dependencies installed.")
+
+    if args.check_api:
+        print("Checking Gemini API access...")
+        results = check_api()
+        all_ok = True
+        for model, info in results.items():
+            marker = "+" if info["ok"] else "-"
+            status = "reachable" if info["ok"] else f"FAILED: {info['error']}"
+            print(f"  [{marker}] {info['role']:5s} {model}: {status}")
+            all_ok = all_ok and info["ok"]
+        if not all_ok:
+            print("\nSet PAPERBANANA_VLM_MODEL / PAPERBANANA_IMAGE_MODEL (provider/model) to models your keys can use.")
+            sys.exit(1)
+        print("\nAPI key and models OK.")
 
     if args.check_code:
         print(f"Validating code: {args.check_code}")

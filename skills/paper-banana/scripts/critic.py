@@ -16,39 +16,14 @@ Requirements:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("Error: google-genai package not installed.")
-    print("Install with: pip install google-genai")
-    sys.exit(1)
-
-try:
-    from PIL import Image
-    import io
-except ImportError:
-    print("Error: Pillow not installed. Install with: pip install pillow")
-    sys.exit(1)
+from common import chat, load_methodology, strip_code_fences
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
 RUBRIC_PATH = SKILL_DIR / "references" / "EVALUATION-RUBRIC.md"
-
-VLM_MODEL = "gemini-2.0-flash"
-
-
-def get_api_key() -> str:
-    """Get Google API key from environment."""
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        print("Error: GOOGLE_API_KEY environment variable not set.")
-        sys.exit(1)
-    return key
 
 
 def load_rubric() -> str:
@@ -56,12 +31,6 @@ def load_rubric() -> str:
     if RUBRIC_PATH.exists():
         return RUBRIC_PATH.read_text(encoding="utf-8")
     return ""
-
-
-def load_image_bytes(image_path: str) -> bytes:
-    """Load an image file and return its bytes."""
-    with open(image_path, "rb") as f:
-        return f.read()
 
 
 def build_critic_prompt(methodology: str, styled_description: str, caption: str, rubric: str) -> str:
@@ -135,45 +104,15 @@ def run_critic(
     caption = stylist_output.get("caption", "")
     rubric = load_rubric()
 
-    api_key = get_api_key()
-    client = genai.Client(api_key=api_key)
-
-    # Build multimodal content: image + evaluation prompt
-    content_parts = []
-
-    # Add the generated image
     img_path = Path(image_path)
     if not img_path.exists():
-        print(f"Error: Image not found: {image_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Image not found: {image_path}")
 
     print(f"Critic: Evaluating image (iteration {iteration})...")
-    img_bytes = load_image_bytes(str(img_path))
-    mime_type = "image/png" if img_path.suffix.lower() == ".png" else "image/jpeg"
-    content_parts.append(
-        types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
-    )
-
-    # Add the evaluation prompt
     prompt_text = build_critic_prompt(methodology, styled_description, caption, rubric)
-    content_parts.append(types.Part.from_text(text=prompt_text))
-
-    response = client.models.generate_content(
-        model=VLM_MODEL,
-        contents=types.Content(parts=content_parts, role="user"),
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-        ),
-    )
-
-    response_text = response.text.strip()
-    if response_text.startswith("```"):
-        lines = response_text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        response_text = "\n".join(lines)
-
-    result = json.loads(response_text)
+    result = json.loads(strip_code_fences(
+        chat(prompt_text, images=[str(img_path)], json_mode=True, temperature=0.2)
+    ))
     result["iteration"] = iteration
 
     # Print evaluation summary
@@ -202,7 +141,7 @@ def main():
                         help="Path to the generated diagram image")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--methodology", type=str, help="Methodology text")
-    group.add_argument("--methodology-file", type=str, help="File containing methodology text")
+    group.add_argument("--methodology-file", type=str, help="Methodology file (.txt, .md, .tex, or .pdf)")
     parser.add_argument("--description", type=str, required=True,
                         help="Path to stylist_output.json")
     parser.add_argument("--iteration", type=int, default=1,
@@ -212,14 +151,11 @@ def main():
 
     args = parser.parse_args()
 
-    if args.methodology_file:
-        path = Path(args.methodology_file)
-        if not path.exists():
-            print(f"Error: File not found: {args.methodology_file}")
-            sys.exit(1)
-        methodology = path.read_text(encoding="utf-8").strip()
-    else:
-        methodology = args.methodology
+    try:
+        methodology = load_methodology(args.methodology, args.methodology_file)
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
     desc_path = Path(args.description)
     if not desc_path.exists():

@@ -41,6 +41,7 @@ desktop.ini
 
 # Test artifacts
 test_*/
+.pytest_cache/
 
 # Claude Code internal files
 CLAUDE.md

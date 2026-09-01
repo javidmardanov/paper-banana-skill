@@ -15,43 +15,15 @@ Requirements:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("Error: google-genai package not installed.")
-    print("Install with: pip install google-genai")
-    sys.exit(1)
+from common import chat, load_methodology, strip_code_fences
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
 REFERENCES_DIR = SKILL_DIR / "assets" / "references"
-INDEX_PATH = REFERENCES_DIR / "index.json"
 CATEGORIES_PATH = SKILL_DIR / "references" / "DIAGRAM-CATEGORIES.md"
-
-VLM_MODEL = "gemini-2.0-flash"
-
-
-def get_api_key() -> str:
-    """Get Google API key from environment."""
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        print("Error: GOOGLE_API_KEY environment variable not set.")
-        sys.exit(1)
-    return key
-
-
-def load_index() -> list[dict]:
-    """Load the reference image index."""
-    if not INDEX_PATH.exists():
-        print(f"Error: Reference index not found at {INDEX_PATH}")
-        sys.exit(1)
-    with open(INDEX_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def load_categories() -> str:
@@ -140,27 +112,8 @@ def run_retriever(methodology: str, mode: str, references_dir: str = None) -> di
     candidates_text = format_candidates(index)
     prompt = build_retriever_prompt(methodology, candidates_text, categories_text)
 
-    api_key = get_api_key()
-    client = genai.Client(api_key=api_key)
-
     print("Retriever: Classifying methodology and selecting references...")
-    response = client.models.generate_content(
-        model=VLM_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-        ),
-    )
-
-    response_text = response.text.strip()
-    # Strip markdown fences if present
-    if response_text.startswith("```"):
-        lines = response_text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        response_text = "\n".join(lines)
-
-    result = json.loads(response_text)
+    result = json.loads(strip_code_fences(chat(prompt, json_mode=True, temperature=0.2)))
 
     # Enrich selected references with file paths and metadata from index
     index_lookup = {entry["id"]: entry for entry in index}
@@ -193,24 +146,23 @@ def main():
     parser = argparse.ArgumentParser(description="PaperBanana Retriever Agent")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--methodology", type=str, help="Methodology text")
-    group.add_argument("--methodology-file", type=str, help="File containing methodology text")
+    group.add_argument("--methodology-file", type=str, help="Methodology file (.txt, .md, .tex, or .pdf)")
     parser.add_argument("--mode", choices=["diagram", "plot"], default="diagram",
                         help="Output mode (default: diagram)")
     parser.add_argument("--output", type=str, default="retriever_output.json",
                         help="Output JSON path (default: retriever_output.json)")
+    parser.add_argument("--references-dir", type=str, default=None,
+                        help="Custom references directory (must contain index.json + images)")
 
     args = parser.parse_args()
 
-    if args.methodology_file:
-        path = Path(args.methodology_file)
-        if not path.exists():
-            print(f"Error: File not found: {args.methodology_file}")
-            sys.exit(1)
-        methodology = path.read_text(encoding="utf-8").strip()
-    else:
-        methodology = args.methodology
+    try:
+        methodology = load_methodology(args.methodology, args.methodology_file)
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
-    result = run_retriever(methodology, args.mode)
+    result = run_retriever(methodology, args.mode, args.references_dir)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

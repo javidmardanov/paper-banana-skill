@@ -1,0 +1,4 @@
+# Optional providers and inputs. Install only what you use.
+openai>=2.0.0        # openai/... models (GPT-5.x vision, gpt-image-2) and openrouter/...
+anthropic>=1.0.0     # anthropic/claude-* models for the reasoning agents
+pypdf>=5.0.0         # --methodology-file paper.pdf
