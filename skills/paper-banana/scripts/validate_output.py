@@ -41,6 +41,12 @@ REQUIRED_PACKAGES = {
     "google-genai": "google.genai",
 }
 
+OPTIONAL_PACKAGES = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "pypdf": "pypdf",
+}
+
 
 def check_dependencies() -> dict:
     """Check which required packages are installed.
@@ -66,17 +72,15 @@ def check_api() -> dict:
         Dictionary mapping model name to {"role", "ok", "error"}.
     """
     sys.path.insert(0, str(Path(__file__).parent))
-    from common import get_client, image_model, vlm_model
+    from common import ProviderError, check_model, image_model, vlm_model
 
-    client = get_client()
     results = {}
     for role, name in (("vlm", vlm_model()), ("image", image_model())):
         try:
-            client.models.get(model=name)
+            check_model(name)
             results[name] = {"role": role, "ok": True, "error": None}
-        except Exception as e:  # noqa: BLE001 - surface any API/auth failure
-            first_line = str(e).strip().splitlines()[0] if str(e).strip() else repr(e)
-            results[name] = {"role": role, "ok": False, "error": first_line[:200]}
+        except ProviderError as e:
+            results[name] = {"role": role, "ok": False, "error": str(e)}
     return results
 
 
@@ -285,13 +289,21 @@ def main():
             if not info["installed"]:
                 all_installed = False
 
+        print("Optional (other providers, PDF input):")
+        for package_name, import_name in OPTIONAL_PACKAGES.items():
+            try:
+                mod = importlib.import_module(import_name)
+                print(f"  [+] {package_name}: v{getattr(mod, '__version__', 'unknown')}")
+            except ImportError:
+                print(f"  [ ] {package_name}: not installed")
+
         if not all_installed:
             print("\nInstall missing packages with:")
             missing = [p for p, i in results.items() if not i["installed"]]
             print(f"  pip install {' '.join(missing)}")
             sys.exit(1)
         else:
-            print("\nAll dependencies installed.")
+            print("\nAll required dependencies installed.")
 
     if args.check_api:
         print("Checking Gemini API access...")
@@ -303,7 +315,7 @@ def main():
             print(f"  [{marker}] {info['role']:5s} {model}: {status}")
             all_ok = all_ok and info["ok"]
         if not all_ok:
-            print("\nSet PAPERBANANA_VLM_MODEL / PAPERBANANA_IMAGE_MODEL to a model your key can use.")
+            print("\nSet PAPERBANANA_VLM_MODEL / PAPERBANANA_IMAGE_MODEL (provider/model) to models your keys can use.")
             sys.exit(1)
         print("\nAPI key and models OK.")
 

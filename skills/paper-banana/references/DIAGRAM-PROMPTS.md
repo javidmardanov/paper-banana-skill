@@ -1,14 +1,14 @@
 # Diagram Mode Agent Prompts
 
-Actual Gemini API prompt templates for the 5-agent pipeline in Diagram Mode, faithfully implementing PaperBanana (arXiv:2601.23265, Appendix G.1). Each agent is a separate Gemini API call with specific prompts and multimodal inputs.
+Prompt templates for the 5-agent pipeline in Diagram Mode, faithfully implementing PaperBanana (arXiv:2601.23265, Appendix G.1). Each agent is a separate call to the configured VLM or image model (Gemini by default; OpenAI, Anthropic, and OpenRouter via `provider/model` names, see `scripts/providers.py`).
 
-**Implementation**: Each prompt below is sent to the Gemini API by its corresponding Python script in `scripts/`. The orchestrator (`scripts/orchestrate.py`) chains them sequentially.
+**Implementation**: Each prompt below is sent by its corresponding Python script in `scripts/` through `common.chat()` / `common.generate_image_bytes()`. The orchestrator (`scripts/orchestrate.py`) chains them sequentially.
 
 ---
 
 ## Phase 1: Retriever (`scripts/retriever.py`)
 
-**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
+**Model**: configured VLM (`PAPERBANANA_VLM_MODEL`, default `gemini-3.5-flash`)
 **Input**: Methodology text (text-only)
 **Output**: JSON with category, visual intent, and 2 selected reference IDs
 
@@ -62,7 +62,7 @@ python scripts/retriever.py \
 
 ## Phase 2: Planner (`scripts/planner.py`)
 
-**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
+**Model**: configured VLM (`PAPERBANANA_VLM_MODEL`, default `gemini-3.5-flash`)
 **Input**: Multimodal — 2 reference images (PNG) + methodology text + caption
 **Output**: Detailed textual description of the target diagram
 
@@ -71,17 +71,19 @@ This is the paper's core innovation: **multimodal in-context learning**. The Pla
 **Prompt template** (sent to Gemini with reference images as image parts):
 
 ```
-[IMAGE: reference_1.png]
-Reference example (agent_reasoning_01): Multi-agent planning framework...
-
-[IMAGE: reference_2.png]
-Reference example (science_applications_02): Climate prediction framework...
+[IMAGE: reference_1.jpg]
+[IMAGE: reference_2.jpg]
+[IMAGE: existing_figure.png]        (only with --input-image)
 
 You are the Planner agent in the PaperBanana academic illustration pipeline.
 
 Your task: Convert the methodology text and figure caption below into an extremely detailed textual description of a methodology diagram. This description will be fed directly to an image generation model.
 
-The reference images provided above show examples of high-quality NeurIPS 2025 methodology diagrams. Use them as visual guides for layout, style, and detail level.
+The reference images provided above show examples of high-quality methodology diagrams from top ML venues. Use them as visual guides for layout, style, and detail level.
+Reference image 1 ({id}): {caption}
+Reference image 2 ({id}): {caption}
+{with --input-image: "The LAST image above is the author's EXISTING FIGURE. Preserve every component,
+ label, and relationship it shows ... while improving layout, legibility, and aesthetics."}
 
 Category: {category from Retriever}
 Visual Intent: {visual_intent from Retriever}
@@ -118,7 +120,7 @@ python scripts/planner.py \
 
 ## Phase 3: Stylist (`scripts/stylist.py`)
 
-**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
+**Model**: configured VLM (`PAPERBANANA_VLM_MODEL`, default `gemini-3.5-flash`)
 **Input**: Planner's description + category + full style guide text
 **Output**: Polished, styled description
 
@@ -129,7 +131,7 @@ The Stylist applies NeurIPS 2025 aesthetic conventions from `references/DIAGRAM-
 ```
 You are the Stylist agent in the PaperBanana academic illustration pipeline.
 
-Your task: Refine the Planner's diagram description below to ensure it meets NeurIPS 2025 publication aesthetics.
+Your task: Refine the Planner's diagram description below to ensure it meets publication aesthetics for the target venue (the NeurIPS 2025 style guide below is the baseline).
 
 --- FIVE CRITICAL RULES ---
 1. PRESERVE high-quality aesthetics
@@ -150,6 +152,11 @@ Your task: Refine the Planner's diagram description below to ensure it meets Neu
 --- NEURIPS 2025 STYLE GUIDE ---
 {full contents of DIAGRAM-STYLE-GUIDE.md}
 
+--- TARGET VENUE ---
+{venue name}: the figure will be typeset {width} inches wide ({single column | full text width}).
+All labels must stay legible at that size.
+{venue notes from assets/venues.json}
+
 --- DIAGRAM CATEGORY ---
 {category}
 
@@ -164,6 +171,7 @@ Output the complete polished description ONLY. No explanations or commentary.
 ```bash
 python scripts/stylist.py \
   --description planner_output.json \
+  --venue icml --figure-width single \
   --output stylist_output.json
 ```
 
@@ -171,11 +179,11 @@ python scripts/stylist.py \
 
 ## Phase 4: Visualizer (`scripts/generate_image.py`)
 
-**Model**: `gemini-3-pro-image` (Nano Banana Pro; override with `PAPERBANANA_IMAGE_MODEL`)
+**Model**: configured image model (`PAPERBANANA_IMAGE_MODEL`, default `gemini-3-pro-image`; also `openai/gpt-image-2`, `gemini-3.1-flash-image`, `openrouter/...`)
 **Input**: Styled description text
 **Output**: Generated PNG image
 
-The Visualizer calls Google's image generation API. The existing `scripts/generate_image.py` handles this phase. The orchestrator prepends a quality prefix to the styled description.
+The Visualizer calls the configured image model through `common.generate_image_bytes()`. The aspect ratio and 1K/2K/4K size are passed natively (Gemini `image_config`, OpenAI `size`, OpenRouter `image_config`). With `--input-image` / `--reference-image`, the existing figure is sent as the edit source (Gemini multimodal parts, OpenAI `images.edit`). The orchestrator prepends a quality prefix to the styled description.
 
 **Quality prefix** (prepended automatically):
 ```
@@ -206,7 +214,7 @@ python scripts/generate_image.py \
 
 ## Phase 5: Critic (`scripts/critic.py`)
 
-**Model**: `gemini-3.5-flash` (default; override with `PAPERBANANA_VLM_MODEL`)
+**Model**: configured VLM (`PAPERBANANA_VLM_MODEL`, default `gemini-3.5-flash`)
 **Input**: Multimodal — generated image (PNG) + methodology text + styled description + rubric
 **Output**: JSON with 4-dimension scores, pass/fail, suggestions, optional revised description
 
@@ -266,6 +274,8 @@ The orchestrator chains all 5 agents and handles the refinement loop:
 ```
 Retriever → Planner → Stylist → Visualizer ⇄ Critic (max 3 iterations)
 ```
+
+With `--num-candidates N`, the first Visualizer pass renders N images in parallel; the Critic scores each and the best one seeds the refinement loop. With `--resume`, saved Retriever/Planner/Stylist outputs are reused. With `--input-image`, the pipeline runs in improve mode (Planner sees the figure, Visualizer edits it).
 
 **CLI usage**:
 ```bash

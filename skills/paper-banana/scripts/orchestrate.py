@@ -35,13 +35,14 @@ import os
 import shutil
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # Add scripts directory to path for imports
 SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import image_model, vlm_model
+from common import ProviderError, image_model, load_methodology, usage_summary, vlm_model
 from retriever import run_retriever
 from planner import run_planner
 from stylist import run_stylist
@@ -50,6 +51,7 @@ from critic import run_critic
 
 SKILL_DIR = SCRIPT_DIR.parent
 MAX_REFINEMENTS = 3
+MAX_PARALLEL = 4  # concurrent candidate generations
 
 
 def determine_aspect_ratio(visual_intent: str) -> str:
@@ -80,6 +82,11 @@ def save_intermediate(data: dict, name: str, work_dir: Path) -> Path:
     return path
 
 
+def _load_intermediate(name: str, work_dir: Path) -> dict:
+    with open(work_dir / f"{name}.json", "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def run_diagram_pipeline(
     methodology: str,
     caption: str,
@@ -87,6 +94,11 @@ def run_diagram_pipeline(
     work_dir: Path,
     references_dir: str = None,
     image_size: str = "2K",
+    venue: str = "neurips",
+    figure_width: str = "double",
+    num_candidates: int = 1,
+    input_image: str = None,
+    resume: bool = False,
 ) -> dict:
     """Run the full diagram generation pipeline.
 
@@ -97,6 +109,11 @@ def run_diagram_pipeline(
         work_dir: Working directory for intermediate files.
         references_dir: Optional custom references directory.
         image_size: Visualizer output resolution ("1K", "2K", "4K").
+        venue: Venue style pack key (see assets/venues.json).
+        figure_width: "single" (one column) or "double" (full text width).
+        num_candidates: Images generated in parallel on the first pass; the best is refined.
+        input_image: Existing figure to improve (fed to the Planner and used as edit source).
+        resume: Reuse retriever/planner/stylist outputs already present in work_dir.
 
     Returns:
         Dict with final results including scores and output path.
@@ -109,73 +126,86 @@ def run_diagram_pipeline(
     start_time = time.time()
     print(f"Models: VLM={vlm_model()}  image={image_model()}")
 
-    # === Phase 1: Retriever ===
-    print("\n" + "=" * 60)
-    print("PHASE 1: RETRIEVER — Categorizing & selecting references")
-    print("=" * 60)
-    retriever_output = run_retriever(methodology, mode="diagram", references_dir=references_dir)
-    save_intermediate(retriever_output, "retriever_output", work_dir)
+    if resume and (work_dir / "stylist_output.json").exists():
+        print(f"\nResuming: reusing retriever/planner/stylist outputs from {work_dir}")
+        retriever_output = _load_intermediate("retriever_output", work_dir)
+        planner_output = _load_intermediate("planner_output", work_dir)
+        stylist_output = _load_intermediate("stylist_output", work_dir)
+    else:
+        # === Phase 1: Retriever ===
+        print("\n" + "=" * 60)
+        print("PHASE 1: RETRIEVER — Categorizing & selecting references")
+        print("=" * 60)
+        retriever_output = run_retriever(methodology, mode="diagram", references_dir=references_dir)
+        save_intermediate(retriever_output, "retriever_output", work_dir)
+
+        # === Phase 2: Planner ===
+        print("\n" + "=" * 60)
+        print("PHASE 2: PLANNER — Generating detailed description")
+        print("=" * 60)
+        planner_output = run_planner(methodology, caption, retriever_output, input_image=input_image)
+        save_intermediate(planner_output, "planner_output", work_dir)
+
+        # === Phase 3: Stylist ===
+        print("\n" + "=" * 60)
+        print(f"PHASE 3: STYLIST — Applying {venue.upper()} aesthetics")
+        print("=" * 60)
+        stylist_output = run_stylist(planner_output, venue=venue, figure_width=figure_width)
+        save_intermediate(stylist_output, "stylist_output", work_dir)
     results["category"] = retriever_output.get("category", "")
     results["visual_intent"] = retriever_output.get("visual_intent", "")
-
-    # === Phase 2: Planner ===
-    print("\n" + "=" * 60)
-    print("PHASE 2: PLANNER — Generating detailed description")
-    print("=" * 60)
-    planner_output = run_planner(methodology, caption, retriever_output)
-    save_intermediate(planner_output, "planner_output", work_dir)
-
-    # === Phase 3: Stylist ===
-    print("\n" + "=" * 60)
-    print("PHASE 3: STYLIST — Applying NeurIPS 2025 aesthetics")
-    print("=" * 60)
-    stylist_output = run_stylist(planner_output)
-    save_intermediate(stylist_output, "stylist_output", work_dir)
+    results["venue"] = stylist_output.get("venue", venue)
 
     # === Phase 4 + 5: Visualizer + Critic Loop ===
     current_description = stylist_output["styled_description"]
     aspect_ratio = determine_aspect_ratio(results.get("visual_intent", ""))
 
     best = None  # (score, iteration, image_path, critic_output)
+    references = [input_image] if input_image else None
 
     for iteration in range(1, MAX_REFINEMENTS + 1):
+        n = max(1, num_candidates) if iteration == 1 else 1
         print("\n" + "=" * 60)
-        print(f"PHASE 4: VISUALIZER — Generating image (iteration {iteration})")
+        print(f"PHASE 4+5: VISUALIZER + CRITIC — {n} candidate(s), iteration {iteration}")
         print("=" * 60)
 
-        # Every iteration is kept in work_dir; the best one is copied to output_path.
+        # Every image is kept in work_dir; the best one is copied to output_path.
         full_prompt = build_prompt(current_description)
-        iter_output = str(work_dir / f"diagram_iter{iteration}.png")
+        paths = [str(work_dir / f"diagram_iter{iteration}{f'_c{k}' if n > 1 else ''}.png")
+                 for k in range(1, n + 1)]
 
-        try:
-            generate_image(
-                prompt=full_prompt,
-                output_path=iter_output,
-                aspect_ratio=aspect_ratio,
-                image_size=image_size,
-            )
-        except RuntimeError as e:
-            print(f"Error: Image generation failed: {e}")
-            results["error"] = str(e)
+        def visualize_and_critique(path, _prompt=full_prompt, _iter=iteration):
+            try:
+                generate_image(prompt=_prompt, output_path=path, aspect_ratio=aspect_ratio,
+                               image_size=image_size, reference_images=references)
+                out = run_critic(image_path=path, methodology=methodology,
+                                 stylist_output=stylist_output, iteration=_iter)
+            except (RuntimeError, ValueError, OSError) as e:
+                print(f"  Candidate {Path(path).name} failed: {e}")
+                return {"error": str(e)}
+            out["image_path"] = path
+            return out
+
+        with ThreadPoolExecutor(max_workers=min(n, MAX_PARALLEL)) as pool:
+            outcomes = list(pool.map(visualize_and_critique, paths))
+
+        candidates = [o for o in outcomes if "error" not in o]
+        if not candidates:
+            results["error"] = outcomes[0].get("error", "image generation failed")
+            print(f"Error: Image generation failed: {results['error']}")
             break
 
-        print(f"\n{'=' * 60}")
-        print(f"PHASE 5: CRITIC — Evaluating image (iteration {iteration})")
-        print("=" * 60)
+        for out in candidates:
+            tag = Path(out["image_path"]).stem.replace("diagram_", "")
+            save_intermediate(out, f"critic_output_{tag}", work_dir)
+            results["iterations"].append(out)
+            score = _primary_score(out)
+            if best is None or score > best[0]:
+                best = (score, iteration, out["image_path"], out)
 
-        critic_output = run_critic(
-            image_path=iter_output,
-            methodology=methodology,
-            stylist_output=stylist_output,
-            iteration=iteration,
-        )
-        critic_output["image_path"] = iter_output
-        save_intermediate(critic_output, f"critic_output_iter{iteration}", work_dir)
-        results["iterations"].append(critic_output)
-
-        score = _primary_score(critic_output)
-        if best is None or score > best[0]:
-            best = (score, iteration, iter_output, critic_output)
+        critic_output = max(candidates, key=_primary_score)
+        if n > 1:
+            print(f"\n  Best of {len(candidates)} candidates: {Path(critic_output['image_path']).name}")
 
         if critic_output.get("primary_pass", False):
             print(f"\n  Image ACCEPTED at iteration {iteration}")
@@ -280,6 +310,7 @@ def print_summary(results: dict) -> None:
 
     if results.get("mode") == "diagram":
         print(f"  Category: {results.get('category', 'N/A')}")
+        print(f"  Venue: {results.get('venue', 'N/A')}")
         print(f"  Visual intent: {results.get('visual_intent', 'N/A')}")
         print(f"  Iterations: {len(results.get('iterations', []))}")
         if results.get("best_iteration"):
@@ -302,6 +333,14 @@ def print_summary(results: dict) -> None:
             print("  Note: Max refinements reached. Manual review recommended.")
 
     print(f"  Intermediates: {results.get('work_dir', 'N/A')}")
+    usage = results.get("usage") or []
+    if usage:
+        print("  Usage:")
+        for u in usage:
+            line = f"    {u['model']}: {u['calls']} calls, {u['input_tokens']} in / {u['output_tokens']} out tokens"
+            if u["images"]:
+                line += f", {u['images']} image(s)"
+            print(line)
 
 
 def main():
@@ -317,7 +356,9 @@ def main():
     diag_group.add_argument("--methodology", type=str,
                             help="Methodology text (diagram mode)")
     diag_group.add_argument("--methodology-file", type=str,
-                            help="File containing methodology text (diagram mode)")
+                            help="Methodology file: .txt, .md, .tex, or .pdf (diagram mode)")
+    parser.add_argument("--pages", type=str, default=None,
+                        help="Page range for PDF input, e.g. 3-5 (default: all pages)")
     parser.add_argument("--caption", type=str, default="",
                         help="Figure caption (diagram mode)")
 
@@ -337,9 +378,19 @@ def main():
     parser.add_argument("--image-size", choices=["1K", "2K", "4K"], default="2K",
                         help="Diagram output resolution (default: 2K)")
     parser.add_argument("--vlm-model", type=str, default=None,
-                        help=f"Gemini model for Retriever/Planner/Stylist/Critic (default: {vlm_model()})")
+                        help=f"VLM for Retriever/Planner/Stylist/Critic, e.g. openai/gpt-5.5 (default: {vlm_model()})")
     parser.add_argument("--image-model", type=str, default=None,
-                        help=f"Gemini image model for the Visualizer (default: {image_model()})")
+                        help=f"Image model for the Visualizer, e.g. openai/gpt-image-2 (default: {image_model()})")
+    parser.add_argument("--venue", type=str, default="neurips",
+                        help="Venue style pack: neurips, iclr, icml, cvpr, acl, aaai (default: neurips)")
+    parser.add_argument("--figure-width", choices=["single", "double"], default="double",
+                        help="Typeset width the figure targets: one column or full text width (default: double)")
+    parser.add_argument("--num-candidates", type=int, default=1,
+                        help="Images to generate in parallel on the first pass; the Critic keeps the best (default: 1)")
+    parser.add_argument("--input-image", type=str, default=None,
+                        help="Existing figure to improve: shown to the Planner and used as the Visualizer's edit source")
+    parser.add_argument("--resume", action="store_true",
+                        help="Reuse retriever/planner/stylist outputs already in the work dir")
 
     args = parser.parse_args()
 
@@ -360,21 +411,24 @@ def main():
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     if args.mode == "diagram":
-        # Get methodology text
-        if args.methodology_file:
-            path = Path(args.methodology_file)
-            if not path.exists():
-                print(f"Error: File not found: {args.methodology_file}")
-                sys.exit(1)
-            methodology = path.read_text(encoding="utf-8").strip()
-        elif args.methodology:
-            methodology = args.methodology
-        else:
-            print("Error: Diagram mode requires --methodology or --methodology-file")
+        try:
+            methodology = load_methodology(args.methodology, args.methodology_file, args.pages)
+        except (OSError, ValueError, RuntimeError) as e:
+            print(f"Error: {e}")
             sys.exit(1)
 
-        results = run_diagram_pipeline(methodology, args.caption, args.output, work_dir,
-                                       args.references_dir, args.image_size)
+        try:
+            results = run_diagram_pipeline(
+                methodology, args.caption, args.output, work_dir,
+                references_dir=args.references_dir, image_size=args.image_size,
+                venue=args.venue, figure_width=args.figure_width,
+                num_candidates=args.num_candidates, input_image=args.input_image,
+                resume=args.resume,
+            )
+        except (ProviderError, ValueError, OSError) as e:
+            print(f"\nError: {e}")
+            sys.exit(1)
+        results["usage"] = usage_summary()
     else:
         if not args.data:
             print("Error: Plot mode requires --data")

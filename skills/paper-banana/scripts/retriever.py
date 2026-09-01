@@ -18,8 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from common import get_client, strip_code_fences, vlm_model
-from google.genai import types
+from common import chat, load_methodology, strip_code_fences
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
@@ -113,19 +112,8 @@ def run_retriever(methodology: str, mode: str, references_dir: str = None) -> di
     candidates_text = format_candidates(index)
     prompt = build_retriever_prompt(methodology, candidates_text, categories_text)
 
-    client = get_client()
-
     print("Retriever: Classifying methodology and selecting references...")
-    response = client.models.generate_content(
-        model=vlm_model(),
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-        ),
-    )
-
-    result = json.loads(strip_code_fences(response.text))
+    result = json.loads(strip_code_fences(chat(prompt, json_mode=True, temperature=0.2)))
 
     # Enrich selected references with file paths and metadata from index
     index_lookup = {entry["id"]: entry for entry in index}
@@ -158,7 +146,7 @@ def main():
     parser = argparse.ArgumentParser(description="PaperBanana Retriever Agent")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--methodology", type=str, help="Methodology text")
-    group.add_argument("--methodology-file", type=str, help="File containing methodology text")
+    group.add_argument("--methodology-file", type=str, help="Methodology file (.txt, .md, .tex, or .pdf)")
     parser.add_argument("--mode", choices=["diagram", "plot"], default="diagram",
                         help="Output mode (default: diagram)")
     parser.add_argument("--output", type=str, default="retriever_output.json",
@@ -168,14 +156,11 @@ def main():
 
     args = parser.parse_args()
 
-    if args.methodology_file:
-        path = Path(args.methodology_file)
-        if not path.exists():
-            print(f"Error: File not found: {args.methodology_file}")
-            sys.exit(1)
-        methodology = path.read_text(encoding="utf-8").strip()
-    else:
-        methodology = args.methodology
+    try:
+        methodology = load_methodology(args.methodology, args.methodology_file)
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
     result = run_retriever(methodology, args.mode, args.references_dir)
 

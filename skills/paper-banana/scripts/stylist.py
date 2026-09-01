@@ -18,8 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from common import get_client, vlm_model
-from google.genai import types
+from common import chat, load_venue, venue_figure_width
 
 SCRIPT_DIR = Path(__file__).parent
 SKILL_DIR = SCRIPT_DIR.parent
@@ -34,11 +33,11 @@ def load_style_guide() -> str:
     return ""
 
 
-def build_stylist_prompt(description: str, category: str, style_guide: str) -> str:
+def build_stylist_prompt(description: str, category: str, style_guide: str, venue_block: str = "") -> str:
     """Build the Stylist agent prompt for Gemini."""
     return f"""You are the Stylist agent in the PaperBanana academic illustration pipeline.
 
-Your task: Refine the Planner's diagram description below to ensure it meets NeurIPS 2025 publication aesthetics. Apply domain-specific styling based on the diagram category.
+Your task: Refine the Planner's diagram description below to ensure it meets publication aesthetics for the target venue (the NeurIPS 2025 style guide below is the baseline). Apply domain-specific styling based on the diagram category.
 
 --- FIVE CRITICAL RULES ---
 1. PRESERVE high-quality aesthetics: Ensure the description produces a visually polished, professional result.
@@ -64,6 +63,7 @@ Your task: Refine the Planner's diagram description below to ensure it meets Neu
 --- NEURIPS 2025 STYLE GUIDE ---
 {style_guide}
 
+{venue_block}
 --- DIAGRAM CATEGORY ---
 {category}
 
@@ -74,12 +74,15 @@ Your task: Refine the Planner's diagram description below to ensure it meets Neu
 Output the complete polished description ONLY. No explanations, commentary, reasoning, or preamble. Just the improved description text as flowing prose that an image generation model can follow."""
 
 
-def run_stylist(planner_output: dict, category_override: str = None) -> dict:
-    """Run the Stylist agent via Gemini VLM.
+def run_stylist(planner_output: dict, category_override: str = None,
+                venue: str = "neurips", figure_width: str = "double") -> dict:
+    """Run the Stylist agent via the configured VLM.
 
     Args:
         planner_output: Output from the Planner agent.
         category_override: Optional category override.
+        venue: Venue style pack key from assets/venues.json.
+        figure_width: "single" (one column) or "double" (full text width).
 
     Returns:
         Dict with the styled description and metadata.
@@ -88,20 +91,18 @@ def run_stylist(planner_output: dict, category_override: str = None) -> dict:
     category = category_override or planner_output.get("category", "Science & Applications")
     style_guide = load_style_guide()
 
-    client = get_client()
-
-    prompt = build_stylist_prompt(description, category, style_guide)
-
-    print(f"Stylist: Applying {category} style to description...")
-    response = client.models.generate_content(
-        model=vlm_model(),
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.3,
-        ),
+    venue_info = load_venue(venue)
+    width_in = venue_figure_width(venue_info, figure_width)
+    span = "single column" if figure_width == "single" else "full text width"
+    venue_block = (
+        f"--- TARGET VENUE ---\n"
+        f"{venue_info['name']}: the figure will be typeset {width_in:.2f} inches wide ({span}). "
+        f"All labels must stay legible at that size.\n{venue_info['notes']}\n"
     )
+    prompt = build_stylist_prompt(description, category, style_guide, venue_block)
 
-    styled_description = response.text.strip()
+    print(f"Stylist: Applying {category} style for {venue_info['name']}...")
+    styled_description = chat(prompt, temperature=0.3).strip()
 
     result = {
         "styled_description": styled_description,
@@ -109,6 +110,8 @@ def run_stylist(planner_output: dict, category_override: str = None) -> dict:
         "visual_intent": planner_output.get("visual_intent", ""),
         "caption": planner_output.get("caption", ""),
         "original_description": description,
+        "venue": venue_info["key"],
+        "figure_width_in": width_in,
     }
 
     print(f"  Styled description length: {len(styled_description)} chars")
@@ -125,6 +128,10 @@ def main():
                         help="Override category (default: from planner output)")
     parser.add_argument("--output", type=str, default="stylist_output.json",
                         help="Output JSON path")
+    parser.add_argument("--venue", type=str, default="neurips",
+                        help="Venue style pack: neurips, iclr, icml, cvpr, acl, aaai (default: neurips)")
+    parser.add_argument("--figure-width", choices=["single", "double"], default="double",
+                        help="Typeset width the figure targets (default: double)")
 
     args = parser.parse_args()
 
@@ -135,7 +142,7 @@ def main():
     with open(desc_path, "r", encoding="utf-8") as f:
         planner_output = json.load(f)
 
-    result = run_stylist(planner_output, args.category)
+    result = run_stylist(planner_output, args.category, args.venue, args.figure_width)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

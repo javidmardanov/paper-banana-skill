@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Google GenAI image generation for PaperBanana methodology diagrams.
 
-Uses a Gemini image model (default: gemini-3-pro-image, "Nano Banana Pro") to
-generate publication-ready academic illustrations from detailed textual
-descriptions. Override the model with --model or PAPERBANANA_IMAGE_MODEL.
+Renders publication-ready academic illustrations from detailed textual
+descriptions. Default model: gemini-3-pro-image ("Nano Banana Pro"); also
+supports openai/gpt-image-2, openai/gpt-image-1.5, and openrouter/<vendor>/<model>.
+Override with --model or PAPERBANANA_IMAGE_MODEL. Pass --reference-image to
+edit/refine an existing figure instead of generating from scratch.
 
 Usage:
     python generate_image.py --prompt "description" --output "diagram.png"
@@ -20,8 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-from common import get_client, image_model
-from google.genai import types
+from common import ProviderConfigError, generate_image_bytes, image_model
 
 try:
     from PIL import Image
@@ -62,8 +63,9 @@ def generate_image(
     aspect_ratio: str = DEFAULT_ASPECT_RATIO,
     temperature: float = 1.0,
     image_size: str = DEFAULT_IMAGE_SIZE,
+    reference_images=None,
 ) -> str:
-    """Generate an image using Google GenAI.
+    """Generate an image with the configured provider and save it as PNG.
 
     Args:
         prompt: The full text prompt for image generation.
@@ -72,6 +74,7 @@ def generate_image(
         aspect_ratio: Aspect ratio string (e.g., "16:9").
         temperature: Generation temperature (default 1.0).
         image_size: Output resolution "1K", "2K", or "4K" (default 2K).
+        reference_images: Optional image paths to edit/refine from (e.g. the author's existing figure).
 
     Returns:
         Path to the saved image file.
@@ -79,7 +82,6 @@ def generate_image(
     Raises:
         RuntimeError: If image generation fails after all retries.
     """
-    client = get_client()
     model = model or image_model()
 
     if aspect_ratio not in ASPECT_RATIOS:
@@ -98,42 +100,24 @@ def generate_image(
     last_error = None
     for attempt in range(MAX_RETRIES):
         try:
-            response = client.models.generate_content(
+            image_data = generate_image_bytes(
+                prompt,
+                aspect_ratio=aspect_ratio,
+                image_size=image_size,
+                reference_images=reference_images,
                 model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    response_modalities=["IMAGE", "TEXT"],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=aspect_ratio,
-                        image_size=image_size,
-                    ),
-                ),
+                temperature=temperature,
             )
+            image = Image.open(io.BytesIO(image_data))
+            if not output_path.lower().endswith(".png"):
+                output_path += ".png"
+            image.save(output_path, "PNG")
+            print(f"Image saved to: {output_path}")
+            print(f"Dimensions: {image.size[0]}x{image.size[1]}")
+            return output_path
 
-            # Extract image from response (keep any text so refusals are visible)
-            text_parts = []
-            if response.candidates and response.candidates[0].content:
-                for part in response.candidates[0].content.parts:
-                    if part.text:
-                        text_parts.append(part.text)
-                    if part.inline_data and part.inline_data.mime_type.startswith("image/"):
-                        image_data = part.inline_data.data
-                        image = Image.open(io.BytesIO(image_data))
-
-                        # Save as PNG
-                        if not output_path.lower().endswith(".png"):
-                            output_path += ".png"
-                        image.save(output_path, "PNG")
-                        print(f"Image saved to: {output_path}")
-                        print(f"Dimensions: {image.size[0]}x{image.size[1]}")
-                        return output_path
-
-            detail = " ".join(text_parts).strip()
-            raise RuntimeError(
-                "No image data in API response" + (f": {detail[:300]}" if detail else "")
-            )
-
+        except ProviderConfigError as e:
+            raise RuntimeError(str(e)) from e  # missing key/SDK: retrying cannot help
         except Exception as e:
             last_error = e
             if attempt < MAX_RETRIES - 1:
@@ -167,7 +151,9 @@ def main():
                         choices=IMAGE_SIZES,
                         help=f"Output resolution (default: {DEFAULT_IMAGE_SIZE})")
     parser.add_argument("--temperature", type=float, default=1.0,
-                        help="Generation temperature (default: 1.0)")
+                        help="Generation temperature, Gemini only (default: 1.0)")
+    parser.add_argument("--reference-image", action="append", default=None,
+                        help="Existing image to edit/refine from (repeatable)")
 
     args = parser.parse_args()
 
@@ -198,6 +184,7 @@ def main():
             aspect_ratio=args.aspect_ratio,
             temperature=args.temperature,
             image_size=args.image_size,
+            reference_images=args.reference_image,
         )
         print(f"Success: {result_path}")
     except RuntimeError as e:
